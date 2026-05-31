@@ -1,0 +1,615 @@
+{
+  "servers": [
+    {
+      "id": "server1",
+      "name": "Home Server",
+      "folders": [
+        {
+          "name": "TV Shows",
+          "mediaLocation": "E:/TV Shows",
+          "media": [
+            {
+              "title": "Arrow (2012)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Arrow%20(2012)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Avatar - The Last Airbender (2005)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Avatar%20-%20The%20Last%20Airbender%20(2005)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Batman - The Animated Series (1992)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Batman%20-%20The%20Animated%20Series%20(1992)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Batman Beyond (1999)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Batman%20Beyond%20(1999)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Better Call Saul (2015)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Better%20Call%20Saul%20(2015)/cover.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Breaking Bad (2008)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Breaking%20Bad%20(2008)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Cobra Kai (2018)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Cobra%20Kai%20(2018)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Code Geass (2006)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Code%20Geass%20(2006)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Community (2009)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Community%20(2009)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Corporate (2018)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Corporate%20(2018)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Death Note (2006)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Death%20Note%20(2006)/poster.jpeg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Impractical Jokers (2011)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Impractical%20Jokers%20(2011)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "It's Always Sunny in Philadelphia (2005)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/It's%20Always%20Sunny%20in%20Philadelphia%20(2005)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Jonah From Tonga (2014)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Jonah%20From%20Tonga%20(2014)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "King of the Hill (1997)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/King%20of%20the%20Hill%20(1997)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Parks and Recreation (2008)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Parks%20and%20Recreation%20(2008)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Person of Interest (2011)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Person%20of%20Interest%20(2011)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Severance (2022)",
+              "type": "show",
+              "imageUrl": null,
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Shooter (2016)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Shooter%20(2016)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Silicon Valley (2014)",
+              "type": "show",
+              "imageUrl": null,
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "SpongeBob SquarePants (1999)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/SpongeBob%20SquarePants%20(1999)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Stargate SG-1 (1997)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Stargate%20SG-1%20(1997)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Steins;Gate (2011)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/Steins%3BGate%20(2011)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Steins;Gate 0 (2018)",
+              "type": "show",
+              "imageUrl": null,
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Superman The Animated Series (1996)",
+              "type": "show",
+              "imageUrl": null,
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "The Flash (2014)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/The%20Flash%20(2014)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "The Last Man on Earth (2015)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/The%20Last%20Man%20on%20Earth%20(2015)/poster.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "The New Batman Adventures (1997)",
+              "type": "show",
+              "imageUrl": null,
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "The Office (2005)",
+              "type": "show",
+              "imageUrl": null,
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "The Office - Extras (2005)",
+              "type": "show",
+              "imageUrl": "/media/TV%20Shows/The%20Office%20-%20Extras%20(2005)/background.jpg",
+              "mediaUrl": null,
+              "subtitles": []
+            }
+          ],
+          "children": [
+            "Arrow (2012)",
+            "Avatar - The Last Airbender (2005)",
+            "Batman - The Animated Series (1992)",
+            "Batman Beyond (1999)",
+            "Better Call Saul (2015)",
+            "Breaking Bad (2008)",
+            "Cobra Kai (2018)",
+            "Code Geass (2006)",
+            "Community (2009)",
+            "Corporate (2018)",
+            "Death Note (2006)",
+            "Impractical Jokers (2011)",
+            "It's Always Sunny in Philadelphia (2005)",
+            "Jonah From Tonga (2014)",
+            "King of the Hill (1997)",
+            "Parks and Recreation (2008)",
+            "Person of Interest (2011)",
+            "Severance (2022)",
+            "Shooter (2016)",
+            "Silicon Valley (2014)",
+            "SpongeBob SquarePants (1999)",
+            "Stargate SG-1 (1997)",
+            "Steins;Gate (2011)",
+            "Steins;Gate 0 (2018)",
+            "Superman The Animated Series (1996)",
+            "The Flash (2014)",
+            "The Last Man on Earth (2015)",
+            "The New Batman Adventures (1997)",
+            "The Office (2005)",
+            "The Office - Extras (2005)"
+          ]
+        },
+        {
+          "name": "Movies",
+          "mediaLocation": "E:/Movies",
+          "media": [
+            {
+              "title": "1917 (2019)",
+              "type": "movie",
+              "imageUrl": "/media/Movies/1917%20(2019)/poster.jpg",
+              "mediaUrl": "/media/Movies/1917%20(2019)/1917%202019%201080p.mp4",
+              "subtitles": []
+            },
+            {
+              "title": "28 Days Later (2002)",
+              "type": "movie",
+              "imageUrl": "/media/Movies/28%20Days%20Later%20(2002)/poster.jpg",
+              "mediaUrl": "/media/Movies/28%20Days%20Later%20(2002)/28%20Days%20Later%20720p.mp4",
+              "subtitles": [
+                {
+                  "label": "28.Days.Later.(2002).English",
+                  "fileName": "28.Days.Later.(2002).English.srt",
+                  "url": "/api/media/subtitles?serverId=server1&folderName=Movies&path=28+Days+Later+%282002%29%2F28.Days.Later.%282002%29.English.srt"
+                },
+                {
+                  "label": "28.Days.Later.2002.Subtitles",
+                  "fileName": "28.Days.Later.2002.Subtitles.srt",
+                  "url": "/api/media/subtitles?serverId=server1&folderName=Movies&path=28+Days+Later+%282002%29%2F28.Days.Later.2002.Subtitles.srt"
+                }
+              ]
+            },
+            {
+              "title": "A Quiet Place (2018)",
+              "type": "movie",
+              "imageUrl": "/media/Movies/A%20Quiet%20Place%20(2018)/poster.jpg",
+              "mediaUrl": "/media/Movies/A%20Quiet%20Place%20(2018)/A.Quiet.Place.2018.1080p.mp4",
+              "subtitles": []
+            },
+            {
+              "title": "Avengers Endgame (2019)",
+              "type": "movie",
+              "imageUrl": "/media/Movies/Avengers%20Endgame%20(2019)/avengers-endgame.jpg",
+              "mediaUrl": "/media/Movies/Avengers%20Endgame%20(2019)/Avengers%20Endgame%20-%201080p.mp4",
+              "subtitles": []
+            },
+            {
+              "title": "Back to the Future",
+              "type": "collection",
+              "imageUrl": null,
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Bullet Train (2022)",
+              "type": "movie",
+              "imageUrl": "/media/Movies/Bullet%20Train%20(2022)/poster.jpg",
+              "mediaUrl": "/media/Movies/Bullet%20Train%20(2022)/Bullet.Train.2022.720p.mp4",
+              "subtitles": [
+                {
+                  "label": "Bullet.Train.2022",
+                  "fileName": "Bullet.Train.2022.srt",
+                  "url": "/api/media/subtitles?serverId=server1&folderName=Movies&path=Bullet+Train+%282022%29%2FBullet.Train.2022.srt"
+                }
+              ]
+            },
+            {
+              "title": "Creed II (2018)",
+              "type": "movie",
+              "imageUrl": "/media/Movies/Creed%20II%20(2018)/creed2poster.jpg",
+              "mediaUrl": "/media/Movies/Creed%20II%20(2018)/Creed%20II%20-%201080p.mp4",
+              "subtitles": []
+            },
+            {
+              "title": "Deadpool",
+              "type": "collection",
+              "imageUrl": null,
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Dragon Ball Z - The History Of Trunks (1993)",
+              "type": "movie",
+              "imageUrl": null,
+              "mediaUrl": "/media/Movies/Dragon%20Ball%20Z%20-%20The%20History%20Of%20Trunks%20(1993)/Dragon.Ball.Z.The.History.Of.Trunks.1993.720p.mp4",
+              "subtitles": [
+                {
+                  "label": "Dragon.Ball.Z.The.History.Of.Trunks.1993",
+                  "fileName": "Dragon.Ball.Z.The.History.Of.Trunks.1993.srt",
+                  "url": "/api/media/subtitles?serverId=server1&folderName=Movies&path=Dragon+Ball+Z+-+The+History+Of+Trunks+%281993%29%2FDragon.Ball.Z.The.History.Of.Trunks.1993.srt"
+                }
+              ]
+            },
+            {
+              "title": "Harry Potter",
+              "type": "collection",
+              "imageUrl": null,
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Hunger Games",
+              "type": "collection",
+              "imageUrl": null,
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Impractical Jokers The Movie (2020)",
+              "type": "movie",
+              "imageUrl": "/media/Movies/Impractical%20Jokers%20The%20Movie%20(2020)/poster.jpg",
+              "mediaUrl": "/media/Movies/Impractical%20Jokers%20The%20Movie%20(2020)/Impractical.Jokers.The.Movie%201080p.mp4",
+              "subtitles": []
+            },
+            {
+              "title": "IP Man (2008)",
+              "type": "movie",
+              "imageUrl": "/media/Movies/IP%20Man%20(2008)/poster.jpg",
+              "mediaUrl": "/media/Movies/IP%20Man%20(2008)/Ip%20Man%202008.720p.mp4",
+              "subtitles": [
+                {
+                  "label": "Ip Man 2008.720p",
+                  "fileName": "Ip Man 2008.720p.srt",
+                  "url": "/api/media/subtitles?serverId=server1&folderName=Movies&path=IP+Man+%282008%29%2FIp+Man+2008.720p.srt"
+                }
+              ]
+            },
+            {
+              "title": "It (2017)",
+              "type": "movie",
+              "imageUrl": "/media/Movies/It%20(2017)/poster.jpg",
+              "mediaUrl": "/media/Movies/It%20(2017)/It.(2017)%20(1080P).m4v",
+              "subtitles": []
+            },
+            {
+              "title": "It Chapter Two (2019)",
+              "type": "movie",
+              "imageUrl": "/media/Movies/It%20Chapter%20Two%20(2019)/poster.jpg",
+              "mediaUrl": "/media/Movies/It%20Chapter%20Two%20(2019)/It.Chapter.Two.2019.1080p.mp4",
+              "subtitles": []
+            },
+            {
+              "title": "John Wick (2014)",
+              "type": "movie",
+              "imageUrl": "/media/Movies/John%20Wick%20(2014)/poster.jpg",
+              "mediaUrl": "/media/Movies/John%20Wick%20(2014)/John.Wick.2014.1080p.mkv",
+              "subtitles": []
+            },
+            {
+              "title": "Jojo Rabbit (2019)",
+              "type": "movie",
+              "imageUrl": "/media/Movies/Jojo%20Rabbit%20(2019)/poster.jpg",
+              "mediaUrl": "/media/Movies/Jojo%20Rabbit%20(2019)/Jojo%20Rabbit%202019%202160p%204K.mkv",
+              "subtitles": []
+            },
+            {
+              "title": "Karate Kid",
+              "type": "collection",
+              "imageUrl": null,
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Lelouch of the Resurrection (2019) (Dub) (720p)",
+              "type": "movie",
+              "imageUrl": "/media/Movies/Lelouch%20of%20the%20Resurrection%20(2019)%20(Dub)%20(720p)/poster.jpg",
+              "mediaUrl": "/media/Movies/Lelouch%20of%20the%20Resurrection%20(2019)%20(Dub)%20(720p)/Code%20Geass%20Lelouch%20Of%20The%20Resurrection%202019%20720p.mp4",
+              "subtitles": []
+            },
+            {
+              "title": "LOTR",
+              "type": "collection",
+              "imageUrl": null,
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Nacho Libre (2006)",
+              "type": "movie",
+              "imageUrl": null,
+              "mediaUrl": "/media/Movies/Nacho%20Libre%20(2006)/Nacho%20Libre-2006-720p.mp4",
+              "subtitles": []
+            },
+            {
+              "title": "Shrek",
+              "type": "collection",
+              "imageUrl": null,
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Spiderman",
+              "type": "collection",
+              "imageUrl": null,
+              "mediaUrl": null,
+              "subtitles": []
+            },
+            {
+              "title": "Steins;Gate the Movie - Load Region of Déjà vu (2013)",
+              "type": "movie",
+              "imageUrl": null,
+              "mediaUrl": "/media/Movies/Steins%3BGate%20the%20Movie%20-%20Load%20Region%20of%20D%C3%A9j%C3%A0%20vu%20(2013)/Steins%3BGate%20The%20Movie%20(1080P)%20(dub).m4v",
+              "subtitles": []
+            },
+            {
+              "title": "Terminator (1984)",
+              "type": "movie",
+              "imageUrl": null,
+              "mediaUrl": "/media/Movies/Terminator%20(1984)/Terminator.1984.720p.mp4",
+              "subtitles": [
+                {
+                  "label": "Terminator.1984.720p",
+                  "fileName": "Terminator.1984.720p.srt",
+                  "url": "/api/media/subtitles?serverId=server1&folderName=Movies&path=Terminator+%281984%29%2FTerminator.1984.720p.srt"
+                }
+              ]
+            },
+            {
+              "title": "The Accountant (2016)",
+              "type": "movie",
+              "imageUrl": null,
+              "mediaUrl": "/media/Movies/The%20Accountant%20(2016)/The.Accountant.2016.1080p.mp4",
+              "subtitles": []
+            },
+            {
+              "title": "The Count Of Monte Cristo (2002)",
+              "type": "movie",
+              "imageUrl": null,
+              "mediaUrl": "/media/Movies/The%20Count%20Of%20Monte%20Cristo%20(2002)/The.Count.Of.Monte.Cristo.2002.1080p.mp4",
+              "subtitles": [
+                {
+                  "label": "The.Count.Of.Monte.Cristo.2002.1080p",
+                  "fileName": "The.Count.Of.Monte.Cristo.2002.1080p.srt",
+                  "url": "/api/media/subtitles?serverId=server1&folderName=Movies&path=The+Count+Of+Monte+Cristo+%282002%29%2FThe.Count.Of.Monte.Cristo.2002.1080p.srt"
+                }
+              ]
+            },
+            {
+              "title": "The Green Mile (1999)",
+              "type": "movie",
+              "imageUrl": null,
+              "mediaUrl": "/media/Movies/The%20Green%20Mile%20(1999)/The.Green.Mile.1999.1080p.mp4",
+              "subtitles": []
+            },
+            {
+              "title": "The Matrix (1999)",
+              "type": "movie",
+              "imageUrl": null,
+              "mediaUrl": "/media/Movies/The%20Matrix%20(1999)/The.Matrix.1999.720p.mp4",
+              "subtitles": [
+                {
+                  "label": "The.Matrix.1999.Subtitles",
+                  "fileName": "The.Matrix.1999.Subtitles.srt",
+                  "url": "/api/media/subtitles?serverId=server1&folderName=Movies&path=The+Matrix+%281999%29%2FThe.Matrix.1999.Subtitles.srt"
+                }
+              ]
+            },
+            {
+              "title": "The Mist (2007)",
+              "type": "movie",
+              "imageUrl": null,
+              "mediaUrl": "/media/Movies/The%20Mist%20(2007)/The%20Mist%20(2007)%201080p.mp4",
+              "subtitles": [
+                {
+                  "label": "The.Mist.(2007).English",
+                  "fileName": "The.Mist.(2007).English.srt",
+                  "url": "/api/media/subtitles?serverId=server1&folderName=Movies&path=The+Mist+%282007%29%2FThe.Mist.%282007%29.English.srt"
+                }
+              ]
+            },
+            {
+              "title": "The Mummy (1999)",
+              "type": "movie",
+              "imageUrl": null,
+              "mediaUrl": "/media/Movies/The%20Mummy%20(1999)/The.Mummy.1999.1080p.mp4",
+              "subtitles": [
+                {
+                  "label": "The.Mummy.1999.1080p",
+                  "fileName": "The.Mummy.1999.1080p.srt",
+                  "url": "/api/media/subtitles?serverId=server1&folderName=Movies&path=The+Mummy+%281999%29%2FThe.Mummy.1999.1080p.srt"
+                }
+              ]
+            },
+            {
+              "title": "The Ringer (2005)",
+              "type": "movie",
+              "imageUrl": null,
+              "mediaUrl": "/media/Movies/The%20Ringer%20(2005)/The.Ringer.2005.1080p.mp4",
+              "subtitles": []
+            },
+            {
+              "title": "The Shawshank Redemption (1994)",
+              "type": "movie",
+              "imageUrl": null,
+              "mediaUrl": "/media/Movies/The%20Shawshank%20Redemption%20(1994)/The.Shawshank.Redemption.1994.1080p.mp4",
+              "subtitles": [
+                {
+                  "label": "The.Shawshank.Redemption.1994.1080p",
+                  "fileName": "The.Shawshank.Redemption.1994.1080p.srt",
+                  "url": "/api/media/subtitles?serverId=server1&folderName=Movies&path=The+Shawshank+Redemption+%281994%29%2FThe.Shawshank.Redemption.1994.1080p.srt"
+                }
+              ]
+            },
+            {
+              "title": "The Thing (1982)",
+              "type": "movie",
+              "imageUrl": "/media/Movies/The%20Thing%20(1982)/poster.jpg",
+              "mediaUrl": "/media/Movies/The%20Thing%20(1982)/The.Thing.1982.Remastered.1080P.m4v",
+              "subtitles": []
+            }
+          ],
+          "children": [
+            "1917 (2019)",
+            "28 Days Later (2002)",
+            "A Quiet Place (2018)",
+            "Avengers Endgame (2019)",
+            "Back to the Future",
+            "Bullet Train (2022)",
+            "Creed II (2018)",
+            "Deadpool",
+            "Dragon Ball Z - The History Of Trunks (1993)",
+            "Harry Potter",
+            "Hunger Games",
+            "Impractical Jokers The Movie (2020)",
+            "IP Man (2008)",
+            "It (2017)",
+            "It Chapter Two (2019)",
+            "John Wick (2014)",
+            "Jojo Rabbit (2019)",
+            "Karate Kid",
+            "Lelouch of the Resurrection (2019) (Dub) (720p)",
+            "LOTR",
+            "Nacho Libre (2006)",
+            "Shrek",
+            "Spiderman",
+            "Steins;Gate the Movie - Load Region of Déjà vu (2013)",
+            "Terminator (1984)",
+            "The Accountant (2016)",
+            "The Count Of Monte Cristo (2002)",
+            "The Green Mile (1999)",
+            "The Matrix (1999)",
+            "The Mist (2007)",
+            "The Mummy (1999)",
+            "The Ringer (2005)",
+            "The Shawshank Redemption (1994)",
+            "The Thing (1982)"
+          ]
+        },
+        {
+          "name": "Music",
+          "mediaLocation": "E:/Music",
+          "media": [],
+          "children": []
+        },
+        {
+          "name": "Audiobooks",
+          "mediaLocation": "E:/Audiobooks",
+          "media": [],
+          "children": []
+        }
+      ]
+    }
+  ]
+}

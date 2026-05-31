@@ -1,0 +1,40 @@
+{
+  "servers": [
+    {
+      "id": "server1",
+      "name": "Home Server",
+      "folders": [
+        {
+          "name": "TV Shows",
+          "mediaLocation": ""
+        },
+        {
+          "name": "Movies",
+          "mediaLocation": ""
+        },
+        {
+          "name": "Music",
+          "mediaLocation": ""
+        },
+        {
+          "name": "Audiobooks",
+          "mediaLocation": ""
+        }
+      ]
+    },
+    {
+      "id": "server2",
+      "name": "Office Server",
+      "folders": [
+        {
+          "name": "Movies",
+          "mediaLocation": ""
+        },
+        {
+          "name": "Music",
+          "mediaLocation": ""
+        }
+      ]
+    }
+  ]
+}
