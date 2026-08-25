@@ -89,6 +89,10 @@ export const api = {
     request<{ success: boolean; newTitle: string; item?: MediaItem; error?: string }>(
       `${itemBase(serverId, folderName, itemTitle)}/rename`, json({ newTitle })),
 
+  setSortTitle: (serverId: string, folderName: string, itemTitle: string, sortTitle: string) =>
+    request<{ success: boolean; item?: MediaItem; error?: string }>(
+      `${itemBase(serverId, folderName, itemTitle)}/sort-title`, json({ sortTitle })),
+
   findSubtitles: (serverId: string, folderName: string, itemTitle: string) =>
     request<{ stub?: boolean; message?: string; results?: SubtitleSearchResult[]; error?: string }>(
       `${itemBase(serverId, folderName, itemTitle)}/find-subtitles`, { method: 'POST' }),

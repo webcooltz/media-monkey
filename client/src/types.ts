@@ -29,6 +29,7 @@ export interface MediaItem {
   imageUrl?: string;
   mediaUrl?: string | null;
   quality?: string | null;
+  sortTitle?: string; // per-item sort-name override (default: title without leading article)
   subtitles?: SubtitleTrack[];
   metadata?: Metadata | null;
   suggestions?: MetadataSuggestion[]; // stored fuzzy matches awaiting approve/deny

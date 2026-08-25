@@ -51,6 +51,8 @@ const MediaItemPage: React.FC<MediaItemPageProps> = ({ serverId, folderName, ite
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [renameStatus, setRenameStatus] = useState<string | null>(null);
+  const [editingSort, setEditingSort] = useState(false);
+  const [sortDraft, setSortDraft] = useState('');
 
   const item = data?.item ?? null;
   const seasons = data?.seasons ?? [];
@@ -93,6 +95,15 @@ const MediaItemPage: React.FC<MediaItemPageProps> = ({ serverId, folderName, ite
       } else setMetaStatus(res.error || 'Apply failed.');
     } catch (e) { setMetaStatus(e instanceof Error ? e.message : 'Apply failed.'); }
     finally { setFetchingMeta(false); }
+  };
+
+  // Default sort name = title with a leading article dropped (matches the server).
+  const defaultSortName = (title: string) => title.replace(/^\s*(the|a|an)\s+/i, '').trim();
+  const saveSortTitle = async (value: string) => {
+    try {
+      const res = await api.setSortTitle(serverId, folderName, itemTitle, value.trim());
+      if (res.success && res.item) { setData({ item: res.item, seasons }); setEditingSort(false); }
+    } catch { /* leave editor open on failure */ }
   };
 
   // Rename the item's folder on disk, then jump to its new route (title changed).
@@ -196,6 +207,28 @@ const MediaItemPage: React.FC<MediaItemPageProps> = ({ serverId, folderName, ite
             </h1>
           )}
           {renameStatus && <p className="mm-status">{renameStatus}</p>}
+          {editingSort ? (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+              <span className="mm-muted" style={{ fontSize: 13 }}>Sorts as:</span>
+              <input
+                type="text"
+                value={sortDraft}
+                placeholder={defaultSortName(item.title)}
+                onChange={e => setSortDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') saveSortTitle(sortDraft); if (e.key === 'Escape') setEditingSort(false); }}
+                autoFocus
+                style={{ flex: 1, minWidth: 200 }}
+              />
+              <Button variant="primary" onClick={() => saveSortTitle(sortDraft)}>Save</Button>
+              <Button onClick={() => saveSortTitle('')} title="Reset to default (drop leading “The”)">Reset</Button>
+              <Button onClick={() => setEditingSort(false)}>Cancel</Button>
+            </div>
+          ) : (
+            <p className="mm-muted" style={{ fontSize: 13, marginBottom: 8 }}>
+              Sorts as: <strong>{item.sortTitle || defaultSortName(item.title)}</strong>
+              <Button style={{ fontSize: 12, marginLeft: 8 }} onClick={() => { setSortDraft(item.sortTitle || ''); setEditingSort(true); }}>✏️ Edit sort name</Button>
+            </p>
+          )}
           {item.mediaUrl && (
             <Button variant="primary" style={{ marginBottom: 16 }}
               onClick={() => onPlay(item.title, item.mediaUrl as string, item.imageUrl, item.subtitles)}>

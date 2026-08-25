@@ -567,6 +567,16 @@ exports.renameItem = (req, res) => {
   res.json({ success: true, newTitle: clean, item });
 };
 
+// POST /api/media/:serverId/:folderName/:itemTitle/sort-title  { sortTitle }
+// Set/clear the per-item sort-name override (empty string resets to default).
+exports.setSortTitle = (req, res) => {
+  const { serverId, folderName, itemTitle } = req.params;
+  const sortTitle = req.body ? req.body.sortTitle : '';
+  const result = catalog.setItemSortTitle(serverId, folderName, itemTitle, sortTitle);
+  if (result.error) return res.status(404).json(result);
+  res.json({ success: true, item: result.item });
+};
+
 exports.uploadCover = (req, res) => {
   const { serverId, folderName, itemTitle } = req.params;
   const { image } = req.body || {};

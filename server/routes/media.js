@@ -37,6 +37,9 @@ router.post('/:serverId/:folderName/:itemTitle/metadata/apply', mediaController.
 // POST rename an item's folder on disk (optionally to an approved TMDB title)
 router.post('/:serverId/:folderName/:itemTitle/rename', mediaController.renameItem);
 
+// POST set/clear an item's sort-name override
+router.post('/:serverId/:folderName/:itemTitle/sort-title', mediaController.setSortTitle);
+
 // POST search online subtitles (OpenSubtitles) for one item
 router.post('/:serverId/:folderName/:itemTitle/find-subtitles', mediaController.findSubtitles);
 

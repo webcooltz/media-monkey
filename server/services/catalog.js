@@ -1,6 +1,18 @@
 const { getDb } = require('../db');
 const scanner = require('./scanner');
 
+// Sort key for a media item: the per-item override if set, else the title with a
+// leading article ("The"/"A"/"An") dropped so "The Matrix" files under M.
+function stripArticle(title) {
+  return String(title || '').replace(/^\s*(the|a|an)\s+/i, '');
+}
+function sortNameOf(item) {
+  return (item.sortTitle || stripArticle(item.title)).trim().toLowerCase();
+}
+function bySortName(a, b) {
+  return sortNameOf(a).localeCompare(sortNameOf(b));
+}
+
 function rowToItem(row) {
   const hasMeta = row.tmdb_id || row.imdb_id || row.overview || row.rating != null || row.year;
   return {
@@ -9,6 +21,7 @@ function rowToItem(row) {
     imageUrl: row.image_url || undefined,
     mediaUrl: row.media_url || null,
     quality: scanner.qualityFromMediaUrl(row.media_url),
+    sortTitle: row.sort_title || undefined,
     suggestions: row.suggestions_json ? JSON.parse(row.suggestions_json) : undefined,
     subtitles: row.subtitles ? JSON.parse(row.subtitles) : [],
     metadata: hasMeta ? {
@@ -56,7 +69,7 @@ function syncFolderAdditive(serverId, folderRow) {
     db.exec('ROLLBACK');
     throw e;
   }
-  return itemsForFolder(folderRow.id).map(rowToItem);
+  return itemsForFolder(folderRow.id).map(rowToItem).sort(bySortName);
 }
 
 // Refresh: full rescan — update existing rows (preserving metadata cols) and prune items gone from disk.
@@ -89,7 +102,7 @@ function refreshFolder(serverId, folderRow) {
     throw e;
   }
   clearChildCache(folderRow.id); // disk changed — drop stale season/episode caches
-  return itemsForFolder(folderRow.id).map(rowToItem);
+  return itemsForFolder(folderRow.id).map(rowToItem).sort(bySortName);
 }
 
 // Return cached child scan (seasons/episodes/collection movies) or scan on miss.
@@ -217,6 +230,18 @@ function setItemMetadata(serverId, folderName, itemTitle, meta) {
 }
 
 // Point a stored item at a new cover image (used after a cover upload).
+// Set (or clear, with '') the per-item sort-name override.
+function setItemSortTitle(serverId, folderName, itemTitle, sortTitle) {
+  const db = getDb();
+  const folderRow = getFolderRow(serverId, folderName);
+  if (!folderRow) return { error: 'Folder not found' };
+  const item = db.prepare('SELECT id FROM media_items WHERE folder_id = ? AND title = ?').get(folderRow.id, itemTitle);
+  if (!item) return { error: 'Item not found' };
+  const clean = sortTitle && String(sortTitle).trim() ? String(sortTitle).trim() : null;
+  db.prepare('UPDATE media_items SET sort_title = ? WHERE id = ?').run(clean, item.id);
+  return { item: rowToItem(db.prepare('SELECT * FROM media_items WHERE id = ?').get(item.id)) };
+}
+
 // Store fuzzy-match suggestions for later approve/deny (null clears them).
 function setItemSuggestions(serverId, folderName, itemTitle, suggestions) {
   const db = getDb();
@@ -247,6 +272,8 @@ module.exports = {
   saveSettings,
   setItemMetadata,
   setItemSuggestions,
+  setItemSortTitle,
   setItemImage,
   rowToItem,
+  stripArticle,
 };
