@@ -22,6 +22,10 @@ function rowToItem(row) {
     mediaUrl: row.media_url || null,
     quality: scanner.qualityFromMediaUrl(row.media_url),
     sortTitle: row.sort_title || undefined,
+    watched: !!row.watched,
+    progressPct: row.duration_seconds && row.progress_seconds
+      ? Math.min(100, Math.round((row.progress_seconds / row.duration_seconds) * 100))
+      : 0,
     suggestions: row.suggestions_json ? JSON.parse(row.suggestions_json) : undefined,
     subtitles: row.subtitles ? JSON.parse(row.subtitles) : [],
     metadata: hasMeta ? {
@@ -230,6 +234,31 @@ function setItemMetadata(serverId, folderName, itemTitle, meta) {
 }
 
 // Point a stored item at a new cover image (used after a cover upload).
+// Update an item's watch state. Explicit `watched` toggles the flag (and clears
+// progress when marking watched); `progressSeconds`/`durationSeconds` record
+// resume position and auto-mark watched past 95%.
+function setWatchState(serverId, folderName, itemTitle, { watched, progressSeconds, durationSeconds } = {}) {
+  const db = getDb();
+  const folderRow = getFolderRow(serverId, folderName);
+  if (!folderRow) return { error: 'Folder not found' };
+  const item = db.prepare('SELECT * FROM media_items WHERE folder_id = ? AND title = ?').get(folderRow.id, itemTitle);
+  if (!item) return { error: 'Item not found' };
+
+  let w = item.watched, p = item.progress_seconds, d = item.duration_seconds;
+  if (progressSeconds != null) {
+    p = progressSeconds;
+    if (durationSeconds != null) d = durationSeconds;
+    if (d && p / d >= 0.95) { w = 1; p = null; } // finished
+  }
+  if (watched != null) {
+    w = watched ? 1 : 0;
+    if (watched) p = null; else if (progressSeconds == null) p = null; // mark unwatched clears progress
+  }
+  db.prepare('UPDATE media_items SET watched = ?, progress_seconds = ?, duration_seconds = ? WHERE id = ?')
+    .run(w, p != null ? p : null, d != null ? d : null, item.id);
+  return { item: rowToItem(db.prepare('SELECT * FROM media_items WHERE id = ?').get(item.id)) };
+}
+
 // Set (or clear, with '') the per-item sort-name override.
 function setItemSortTitle(serverId, folderName, itemTitle, sortTitle) {
   const db = getDb();
@@ -273,6 +302,7 @@ module.exports = {
   setItemMetadata,
   setItemSuggestions,
   setItemSortTitle,
+  setWatchState,
   setItemImage,
   rowToItem,
   stripArticle,

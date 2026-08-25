@@ -16,11 +16,13 @@ import { mediaCategories, categoryForFolder } from './mediaCategories';
 import type { CollectionSummary, MediaItemWithSource, ServerSettings, SubtitleTrack } from './types';
 import './App.css';
 
-// Shared play navigation (subtitles ride along in history state).
+export type WatchTarget = { serverId: string; folderName: string; itemTitle: string };
+
+// Shared play navigation (subtitles + watch target ride along in history state).
 function usePlay() {
   const navigate = useNavigate();
-  return (title: string, mediaUrl: string, posterUrl?: string, subtitles?: SubtitleTrack[]) =>
-    navigate(paths.play(title, mediaUrl, posterUrl), { state: { subtitles } });
+  return (title: string, mediaUrl: string, posterUrl?: string, subtitles?: SubtitleTrack[], watch?: WatchTarget) =>
+    navigate(paths.play(title, mediaUrl, posterUrl), { state: { subtitles, watch } });
 }
 
 function HomePage({ servers }: { servers: ServerSettings[] | null }) {
@@ -136,7 +138,7 @@ function PlayerRoute() {
   const [params] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const subtitles = (location.state as { subtitles?: SubtitleTrack[] } | null)?.subtitles || [];
+  const state = location.state as { subtitles?: SubtitleTrack[]; watch?: WatchTarget } | null;
   const src = params.get('src') || '';
   return (
     <MediaPlayerPage
@@ -144,7 +146,8 @@ function PlayerRoute() {
       title={params.get('title') || ''}
       mediaUrl={src}
       posterUrl={params.get('poster') || undefined}
-      subtitles={subtitles}
+      subtitles={state?.subtitles || []}
+      watchTarget={state?.watch}
       onBack={() => navigate(-1)}
     />
   );
@@ -158,13 +161,11 @@ function CollectionsRoute() {
 function CollectionRoute() {
   const { name = '' } = useParams();
   const navigate = useNavigate();
-  const play = usePlay();
   return (
     <CollectionPage
       key={name}
       name={name}
       onBack={() => navigate(paths.collections())}
-      onPlay={play}
       onOpenItem={(serverId, folderName, itemTitle) => navigate(paths.item(serverId, folderName, itemTitle))}
     />
   );

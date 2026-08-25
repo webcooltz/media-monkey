@@ -39,6 +39,9 @@ CREATE TABLE IF NOT EXISTS media_items (
   metadata_updated_at TEXT,
   suggestions_json    TEXT,
   sort_title          TEXT,
+  watched             INTEGER DEFAULT 0,
+  progress_seconds    REAL,
+  duration_seconds    REAL,
   created_at          TEXT DEFAULT (datetime('now')),
   UNIQUE(folder_id, rel_path)
 );
@@ -126,6 +129,9 @@ function getDb() {
   try { db.exec('ALTER TABLE collections ADD COLUMN cover_url TEXT'); } catch {}
   try { db.exec('ALTER TABLE media_items ADD COLUMN suggestions_json TEXT'); } catch {}
   try { db.exec('ALTER TABLE media_items ADD COLUMN sort_title TEXT'); } catch {}
+  try { db.exec('ALTER TABLE media_items ADD COLUMN watched INTEGER DEFAULT 0'); } catch {}
+  try { db.exec('ALTER TABLE media_items ADD COLUMN progress_seconds REAL'); } catch {}
+  try { db.exec('ALTER TABLE media_items ADD COLUMN duration_seconds REAL'); } catch {}
   migrateFromSettingsJson();
   return db;
 }

@@ -5,7 +5,7 @@ import Panel from './ui/Panel';
 import Button from './ui/Button';
 import { api, type SubtitleSearchResult, type MetadataSuggestion } from '../api';
 import { useAsync } from '../hooks/useAsync';
-import type { MediaItem, SubtitleTrack } from '../types';
+import type { MediaItem, PlayableFile, SubtitleTrack } from '../types';
 
 interface MediaItemPageProps {
   serverId: string;
@@ -13,7 +13,7 @@ interface MediaItemPageProps {
   itemTitle: string;
   onBack: () => void;
   onSelectSeason: (seasonName: string) => void;
-  onPlay: (title: string, mediaUrl: string, posterUrl?: string, subtitles?: SubtitleTrack[]) => void;
+  onPlay: (title: string, mediaUrl: string, posterUrl?: string, subtitles?: SubtitleTrack[], watch?: { serverId: string; folderName: string; itemTitle: string }) => void;
   onRenamed: (newTitle: string) => void;
 }
 
@@ -53,10 +53,31 @@ const MediaItemPage: React.FC<MediaItemPageProps> = ({ serverId, folderName, ite
   const [renameStatus, setRenameStatus] = useState<string | null>(null);
   const [editingSort, setEditingSort] = useState(false);
   const [sortDraft, setSortDraft] = useState('');
+  const [versions, setVersions] = useState<PlayableFile[]>([]);
 
   const item = data?.item ?? null;
   const seasons = data?.seasons ?? [];
   const updateItem = (patch: Partial<MediaItem>) => item && setData({ item: { ...item, ...patch }, seasons });
+  const watchTarget = { serverId, folderName, itemTitle };
+  const [togglingWatch, setTogglingWatch] = useState(false);
+
+  const toggleWatched = async () => {
+    if (!item) return;
+    setTogglingWatch(true);
+    try {
+      const res = await api.setWatched(serverId, folderName, itemTitle, !item.watched);
+      if (res.item) setData({ item: res.item, seasons });
+    } catch { /* ignore */ }
+    finally { setTogglingWatch(false); }
+  };
+
+  // List all playable files in a movie's folder (for the version picker).
+  useEffect(() => {
+    if (item && item.type !== 'show' && item.type !== 'collection') {
+      api.getItemFiles(serverId, folderName, itemTitle).then(r => setVersions(r.files || [])).catch(() => setVersions([]));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.title]);
 
   // Show suggestions saved by a batch "Fetch all" as soon as the item loads.
   useEffect(() => {
@@ -182,7 +203,7 @@ const MediaItemPage: React.FC<MediaItemPageProps> = ({ serverId, folderName, ite
 
       <div className="item-header">
         <div className="item-header__poster">
-          <Poster src={item.imageUrl} alt={item.title} width={260} height={390} quality={item.quality} />
+          <Poster src={item.imageUrl} alt={item.title} width={260} height={390} quality={item.quality} watched={item.watched} progressPct={item.progressPct} />
           {canEditCover && <Button onClick={() => setEditingCover(true)}>🖼️ Change cover</Button>}
         </div>
 
@@ -229,11 +250,31 @@ const MediaItemPage: React.FC<MediaItemPageProps> = ({ serverId, folderName, ite
               <Button style={{ fontSize: 12, marginLeft: 8 }} onClick={() => { setSortDraft(item.sortTitle || ''); setEditingSort(true); }}>✏️ Edit sort name</Button>
             </p>
           )}
-          {item.mediaUrl && (
-            <Button variant="primary" style={{ marginBottom: 16 }}
-              onClick={() => onPlay(item.title, item.mediaUrl as string, item.imageUrl, item.subtitles)}>
-              ▶ Play
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
+            {item.mediaUrl && (
+              <Button variant="primary"
+                onClick={() => onPlay(item.title, item.mediaUrl as string, item.imageUrl, item.subtitles, watchTarget)}>
+                ▶ Play
+              </Button>
+            )}
+            <Button onClick={toggleWatched} disabled={togglingWatch}>
+              {item.watched ? '✓ Watched — mark unwatched' : 'Mark as watched'}
             </Button>
+          </div>
+
+          {versions.length > 1 && (
+            <Panel title="Files">
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {versions.map(v => (
+                  <li key={v.fileName} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <span style={{ flex: 1, fontSize: 13, wordBreak: 'break-word' }}>
+                      {v.fileName}{v.quality ? <span className="mm-muted"> · {v.quality}</span> : null}
+                    </span>
+                    <Button onClick={() => onPlay(`${item.title} — ${v.title}`, v.mediaUrl, item.imageUrl, v.subtitles && v.subtitles.length ? v.subtitles : item.subtitles, watchTarget)}>▶ Play</Button>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
           )}
 
           <Panel

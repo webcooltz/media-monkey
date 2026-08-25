@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
+import { api } from '../api';
 
 interface MediaPlayerPageProps {
   title: string;
   mediaUrl: string;
   posterUrl?: string;
   subtitles?: SubtitleTrack[];
+  watchTarget?: { serverId: string; folderName: string; itemTitle: string };
   onBack: () => void;
 }
 
@@ -44,8 +46,9 @@ function getSavedResumeTime(progressKey: string) {
   }
 }
 
-const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, posterUrl, subtitles = [], onBack }) => {
+const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, posterUrl, subtitles = [], watchTarget, onBack }) => {
   const playerRef = useRef<HTMLVideoElement | HTMLAudioElement>(null);
+  const lastReport = useRef(0);
   const isStream = useMemo(() => mediaUrl.startsWith('/api/media/stream'), [mediaUrl]);
   const mediaType = useMemo(() => {
     const path = mediaUrl.split('?')[0].toLowerCase();
@@ -115,6 +118,7 @@ const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, post
 
     if (isNearlyFinished) {
       localStorage.removeItem(progressKey);
+      reportWatch(player.currentTime, duration); // server marks watched past 95%
       return;
     }
 
@@ -124,6 +128,18 @@ const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, post
       updatedAt: Date.now(),
     };
     localStorage.setItem(progressKey, JSON.stringify(progress));
+    reportWatch(player.currentTime, duration);
+  };
+
+  // Persist resume progress to the server (throttled), so the poster overlay shows
+  // a progress bar / watched check across devices. No-op without a watch target.
+  const reportWatch = (currentTime: number, duration: number) => {
+    if (!watchTarget || !duration) return;
+    const now = Date.now();
+    const finished = currentTime >= Math.max(duration - 10, duration * 0.95);
+    if (!finished && now - lastReport.current < 10000) return; // throttle
+    lastReport.current = now;
+    api.setWatchProgress(watchTarget.serverId, watchTarget.folderName, watchTarget.itemTitle, currentTime, duration).catch(() => {});
   };
 
   const handleLoadedMetadata = () => {
@@ -139,6 +155,7 @@ const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, post
 
   const handleEnded = () => {
     localStorage.removeItem(progressKey);
+    if (watchTarget) api.setWatched(watchTarget.serverId, watchTarget.folderName, watchTarget.itemTitle, true).catch(() => {});
     setResumeTime(null);
   };
 

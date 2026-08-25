@@ -480,6 +480,28 @@ exports.runCleanvid = async (req, res) => {
   }
 };
 
+// POST /api/media/:serverId/:folderName/:itemTitle/watch
+//   { watched?: bool, progressSeconds?, durationSeconds? }
+exports.setWatchState = (req, res) => {
+  const { serverId, folderName, itemTitle } = req.params;
+  const { watched, progressSeconds, durationSeconds } = req.body || {};
+  const result = catalog.setWatchState(serverId, folderName, itemTitle, { watched, progressSeconds, durationSeconds });
+  if (result.error) return res.status(404).json(result);
+  res.json({ success: true, item: result.item });
+};
+
+// GET /api/media/:serverId/:folderName/:itemTitle/files
+// All playable files in a movie's folder (Extended/Original/… cuts) for a picker.
+exports.getItemFiles = (req, res) => {
+  const { serverId, folderName, itemTitle } = req.params;
+  const folderRow = catalog.getFolderRow(serverId, folderName);
+  if (!folderRow) return res.status(404).json({ error: 'Folder not found' });
+  const row = getDb().prepare('SELECT rel_path FROM media_items WHERE folder_id = ? AND title = ?').get(folderRow.id, itemTitle);
+  const relPath = row ? row.rel_path : itemTitle;
+  const folder = { name: folderRow.name, mediaLocation: folderRow.media_location };
+  res.json({ files: scanner.listPlayableVersions(serverId, folder, relPath) });
+};
+
 // POST /api/media/:serverId/:folderName/fetch-all-metadata
 // Fetch metadata for every item in the folder that has none yet. Exact matches are
 // applied + poster saved; fuzzy ones have their suggestions stored for later

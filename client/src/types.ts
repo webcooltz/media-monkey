@@ -30,9 +30,20 @@ export interface MediaItem {
   mediaUrl?: string | null;
   quality?: string | null;
   sortTitle?: string; // per-item sort-name override (default: title without leading article)
+  watched?: boolean;
+  progressPct?: number; // resume position as a percentage (0 when none/watched)
   subtitles?: SubtitleTrack[];
   metadata?: Metadata | null;
   suggestions?: MetadataSuggestion[]; // stored fuzzy matches awaiting approve/deny
+}
+
+// A playable file inside a movie's folder (one of possibly several cuts).
+export interface PlayableFile {
+  fileName: string;
+  title: string;
+  quality?: string | null;
+  mediaUrl: string;
+  subtitles?: SubtitleTrack[];
 }
 
 export interface FolderSettings {

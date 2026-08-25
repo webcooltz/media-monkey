@@ -1,4 +1,4 @@
-import type { BrowseResponse, CollectionDetail, CollectionSummary, MediaItem, MetadataSuggestion, ServerSettings, SubtitleTrack } from './types';
+import type { BrowseResponse, CollectionDetail, CollectionSummary, MediaItem, MetadataSuggestion, PlayableFile, ServerSettings, SubtitleTrack } from './types';
 
 export const API_BASE = '/api';
 
@@ -70,6 +70,9 @@ export const api = {
   getSeasons: (serverId: string, folderName: string, itemTitle: string) =>
     request<{ media: MediaItem[] }>(itemBase(serverId, folderName, itemTitle)),
 
+  getItemFiles: (serverId: string, folderName: string, itemTitle: string) =>
+    request<{ files: PlayableFile[] }>(`${itemBase(serverId, folderName, itemTitle)}/files`),
+
   getEpisodes: (serverId: string, folderName: string, itemTitle: string, seasonName: string) =>
     request<{ media: MediaItem[] }>(`${itemBase(serverId, folderName, itemTitle)}/${seg(seasonName)}`),
 
@@ -92,6 +95,13 @@ export const api = {
   setSortTitle: (serverId: string, folderName: string, itemTitle: string, sortTitle: string) =>
     request<{ success: boolean; item?: MediaItem; error?: string }>(
       `${itemBase(serverId, folderName, itemTitle)}/sort-title`, json({ sortTitle })),
+
+  setWatched: (serverId: string, folderName: string, itemTitle: string, watched: boolean) =>
+    request<{ success: boolean; item?: MediaItem }>(
+      `${itemBase(serverId, folderName, itemTitle)}/watch`, json({ watched })),
+  setWatchProgress: (serverId: string, folderName: string, itemTitle: string, progressSeconds: number, durationSeconds: number) =>
+    request<{ success: boolean; item?: MediaItem }>(
+      `${itemBase(serverId, folderName, itemTitle)}/watch`, json({ progressSeconds, durationSeconds })),
 
   findSubtitles: (serverId: string, folderName: string, itemTitle: string) =>
     request<{ stub?: boolean; message?: string; results?: SubtitleSearchResult[]; error?: string }>(

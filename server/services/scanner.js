@@ -208,6 +208,23 @@ function movieCollectionFolders(folder) {
   return getFoldersInDir(folder.mediaLocation).filter(isMovieCollection);
 }
 
+// List every playable file in an item's folder (rel path within the folder), each
+// with its own play URL, quality, and matching subtitles — so a movie with
+// multiple cuts (Extended, Original, …) can offer a version picker.
+function listPlayableVersions(serverId, folder, relPath) {
+  const relSegs = String(relPath).split('/').filter(Boolean);
+  const dir = path.join(folder.mediaLocation, ...relSegs);
+  return getFilesInDir(dir)
+    .filter(name => playableExtensions.includes(path.extname(name).toLowerCase()))
+    .map(name => ({
+      fileName: name,
+      title: path.parse(name).name,
+      quality: qualityFromName(name),
+      mediaUrl: buildPlayUrl(serverId, folder.name, [...relSegs, name]),
+      subtitles: findSubtitleFiles(dir, serverId, folder.name, relSegs, name, path.parse(name).name),
+    }));
+}
+
 function scanShowSeasons(folder, showTitle) {
   const showPath = path.join(folder.mediaLocation, showTitle);
   return getFoldersInDir(showPath).map(name => {
@@ -258,6 +275,7 @@ module.exports = {
   qualityFromName,
   qualityFromMediaUrl,
   movieCollectionFolders,
+  listPlayableVersions,
   scanFolder,
   scanShowSeasons,
   scanCollectionMovies,

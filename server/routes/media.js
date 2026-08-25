@@ -40,6 +40,9 @@ router.post('/:serverId/:folderName/:itemTitle/rename', mediaController.renameIt
 // POST set/clear an item's sort-name override
 router.post('/:serverId/:folderName/:itemTitle/sort-title', mediaController.setSortTitle);
 
+// POST update watch state (watched toggle + resume progress)
+router.post('/:serverId/:folderName/:itemTitle/watch', mediaController.setWatchState);
+
 // POST search online subtitles (OpenSubtitles) for one item
 router.post('/:serverId/:folderName/:itemTitle/find-subtitles', mediaController.findSubtitles);
 
@@ -61,6 +64,10 @@ router.post('/:serverId/:folderName/:itemTitle/season-posters', mediaController.
 
 // POST upload/crop a single season's cover (base64) — saved as poster.jpg in the season folder
 router.post('/:serverId/:folderName/:itemTitle/:seasonName/cover', mediaController.uploadSeasonCover);
+
+// GET playable files (versions/cuts) in a movie's folder — before the :seasonName
+// route so "files" isn't read as a season name.
+router.get('/:serverId/:folderName/:itemTitle/files', mediaController.getItemFiles);
 
 // GET episodes for a specific season in a show
 router.get('/:serverId/:folderName/:itemTitle/:seasonName', mediaController.getSeasonEpisodes);

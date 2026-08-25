@@ -3,18 +3,17 @@ import Poster from './ui/Poster';
 import Button from './ui/Button';
 import { api } from '../api';
 import { useAsync } from '../hooks/useAsync';
-import type { CollectionDetail, CollectionMember, ServerSettings, SubtitleTrack } from '../types';
+import type { CollectionDetail, CollectionMember, ServerSettings } from '../types';
 
 interface CollectionPageProps {
   name: string;
   onBack: () => void;
-  onPlay: (title: string, mediaUrl: string, posterUrl?: string, subtitles?: SubtitleTrack[]) => void;
   onOpenItem: (serverId: string, folderName: string, itemTitle: string) => void;
 }
 
 type Candidate = { serverId: string; folderName: string; title: string; type: string };
 
-const CollectionPage: React.FC<CollectionPageProps> = ({ name, onBack, onPlay, onOpenItem }) => {
+const CollectionPage: React.FC<CollectionPageProps> = ({ name, onBack, onOpenItem }) => {
   const { data, loading, error, setData } = useAsync<CollectionDetail>(
     async () => await api.getCollection(name), [name]);
   // Candidate items to attach: every movie/show across all folders.
@@ -87,11 +86,8 @@ const CollectionPage: React.FC<CollectionPageProps> = ({ name, onBack, onPlay, o
           {members.map((m, idx) => (
             <div key={memberKey({ serverId: m.serverId, folderName: m.folderName, title: m.title }) + idx} style={{ textAlign: 'center', width: 140 }}>
               <div
-                style={{ cursor: m.itemTitle || m.mediaUrl ? 'pointer' : 'default' }}
-                onClick={() => {
-                  if (m.itemTitle) onOpenItem(m.serverId, m.folderName, m.itemTitle);
-                  else if (m.mediaUrl) onPlay(m.title, m.mediaUrl, m.imageUrl, m.subtitles);
-                }}
+                style={{ cursor: 'pointer' }}
+                onClick={() => onOpenItem(m.serverId, m.folderName, m.itemTitle || m.title)}
               >
                 <Poster src={m.imageUrl} alt={m.title} width={120} height={180} quality={m.quality} />
                 <div className="card-title">{m.title}</div>
