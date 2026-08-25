@@ -23,6 +23,26 @@ function itemDirFromTitle(folderRow, itemTitle) {
   return dir;
 }
 
+// Download a remote poster (e.g. TMDB) into the item's folder as poster.jpg and
+// return its local /media URL, so it persists on disk and survives rescans (a
+// bare remote URL in image_url gets overwritten the next time the folder is
+// rescanned). Falls back to the original URL if the download can't be saved.
+async function persistPoster(folderRow, folderName, itemTitle, posterUrl) {
+  if (!posterUrl || !/^https?:/i.test(posterUrl)) return posterUrl || null;
+  const itemDir = itemDirFromTitle(folderRow, itemTitle);
+  if (!itemDir || !fs.existsSync(itemDir) || !fs.statSync(itemDir).isDirectory()) return posterUrl;
+  try {
+    const r = await fetch(posterUrl);
+    if (!r.ok) return posterUrl;
+    fs.writeFileSync(path.join(itemDir, 'poster.jpg'), Buffer.from(await r.arrayBuffer()));
+    const rootPath = path.resolve(folderRow.media_location);
+    const relSegs = path.relative(rootPath, itemDir).split(path.sep);
+    return `/media/${[folderName, ...relSegs, 'poster.jpg'].map(encodeURIComponent).join('/')}?v=${Date.now()}`;
+  } catch {
+    return posterUrl;
+  }
+}
+
 // Resolve an item's stored /media/... URL back to an absolute on-disk path.
 function resolveMediaPath(folderRow, mediaUrl) {
   if (!mediaUrl) return null;
@@ -122,6 +142,7 @@ exports.fetchMetadata = async (req, res) => {
     // No confident match — hand back candidates for the user to approve/deny.
     if (meta.suggestions) return res.json({ suggestions: meta.suggestions });
 
+    meta.posterUrl = await persistPoster(folderRow, folderName, itemTitle, meta.posterUrl);
     const result = catalog.setItemMetadata(serverId, folderName, itemTitle, meta);
     if (result.error) return res.status(404).json(result);
     res.json({ found: true, provider: meta.provider, item: result.item });
@@ -145,6 +166,7 @@ exports.applyMetadata = async (req, res) => {
   try {
     const meta = await metadata.resolveTmdbById(tmdbId, isShow);
     if (!meta) return res.json({ found: false });
+    meta.posterUrl = await persistPoster(folderRow, folderName, itemTitle, meta.posterUrl);
     const result = catalog.setItemMetadata(serverId, folderName, itemTitle, meta);
     if (result.error) return res.status(404).json(result);
     res.json({ found: true, provider: meta.provider, item: result.item });
