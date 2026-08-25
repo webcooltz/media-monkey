@@ -1,4 +1,4 @@
-import type { BrowseResponse, CollectionDetail, CollectionSummary, MediaItem, ServerSettings, SubtitleTrack } from './types';
+import type { BrowseResponse, CollectionDetail, CollectionSummary, MediaItem, MetadataSuggestion, ServerSettings, SubtitleTrack } from './types';
 
 export const API_BASE = '/api';
 
@@ -24,16 +24,6 @@ function json(body: unknown): RequestInit {
 const seg = encodeURIComponent;
 const itemBase = (serverId: string, folderName: string, itemTitle: string) =>
   `/media/${seg(serverId)}/${seg(folderName)}/${seg(itemTitle)}`;
-
-export interface MetadataSuggestion {
-  tmdbId: string;
-  title: string;
-  year?: string | null;
-  overview?: string | null;
-  rating?: number | null;
-  posterUrl?: string | null;
-  tmdbKind?: string;
-}
 
 export interface SubtitleSearchResult {
   id: string;
@@ -91,6 +81,10 @@ export const api = {
     request<{ found?: boolean; provider?: string; item?: MediaItem; error?: string }>(
       `${itemBase(serverId, folderName, itemTitle)}/metadata/apply`, json({ tmdbId })),
 
+  batchFetchMetadata: (serverId: string, folderName: string) =>
+    request<{ done?: boolean; stub?: boolean; message?: string; total?: number; applied?: number; review?: number; none?: number; failed?: number; media?: MediaItem[] }>(
+      `/media/${seg(serverId)}/${seg(folderName)}/fetch-all-metadata`, { method: 'POST' }),
+
   renameItem: (serverId: string, folderName: string, itemTitle: string, newTitle: string) =>
     request<{ success: boolean; newTitle: string; item?: MediaItem; error?: string }>(
       `${itemBase(serverId, folderName, itemTitle)}/rename`, json({ newTitle })),
@@ -145,4 +139,4 @@ export const api = {
     }),
 };
 
-export type { SubtitleTrack };
+export type { SubtitleTrack, MetadataSuggestion };

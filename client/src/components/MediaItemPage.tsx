@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import CoverEditor from './CoverEditor';
 import Poster from './ui/Poster';
 import Panel from './ui/Panel';
@@ -55,6 +55,15 @@ const MediaItemPage: React.FC<MediaItemPageProps> = ({ serverId, folderName, ite
   const item = data?.item ?? null;
   const seasons = data?.seasons ?? [];
   const updateItem = (patch: Partial<MediaItem>) => item && setData({ item: { ...item, ...patch }, seasons });
+
+  // Show suggestions saved by a batch "Fetch all" as soon as the item loads.
+  useEffect(() => {
+    if (item?.suggestions && item.suggestions.length) {
+      setMetaSuggestions(item.suggestions);
+      setMetaStatus('No exact match from “Fetch all” — pick the right one, or skip.');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.title]);
 
   const fetchMetadata = async () => {
     setFetchingMeta(true); setMetaStatus(null); setMetaSuggestions(null);

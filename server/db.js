@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS media_items (
   rating              REAL,
   metadata_json       TEXT,
   metadata_updated_at TEXT,
+  suggestions_json    TEXT,
   created_at          TEXT DEFAULT (datetime('now')),
   UNIQUE(folder_id, rel_path)
 );
@@ -122,6 +123,7 @@ function getDb() {
   db.exec(SCHEMA);
   // Add columns introduced after a table first shipped (no-op if already present).
   try { db.exec('ALTER TABLE collections ADD COLUMN cover_url TEXT'); } catch {}
+  try { db.exec('ALTER TABLE media_items ADD COLUMN suggestions_json TEXT'); } catch {}
   migrateFromSettingsJson();
   return db;
 }

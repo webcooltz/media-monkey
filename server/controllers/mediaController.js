@@ -139,8 +139,12 @@ exports.fetchMetadata = async (req, res) => {
     if (meta.stub) {
       return res.json({ stub: true, message: 'No metadata provider configured. Add TMDB_API_KEY (or OMDB_API_KEY) to server/.env.' });
     }
-    // No confident match — hand back candidates for the user to approve/deny.
-    if (meta.suggestions) return res.json({ suggestions: meta.suggestions });
+    // No confident match — save the candidates so the item page can show them
+    // later (e.g. after a batch fetch), and hand them back now.
+    if (meta.suggestions) {
+      catalog.setItemSuggestions(serverId, folderName, itemTitle, meta.suggestions);
+      return res.json({ suggestions: meta.suggestions });
+    }
 
     meta.posterUrl = await persistPoster(folderRow, folderName, itemTitle, meta.posterUrl);
     const result = catalog.setItemMetadata(serverId, folderName, itemTitle, meta);
@@ -474,6 +478,45 @@ exports.runCleanvid = async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: 'cleanvid failed: ' + e.message });
   }
+};
+
+// POST /api/media/:serverId/:folderName/fetch-all-metadata
+// Fetch metadata for every item in the folder that has none yet. Exact matches are
+// applied + poster saved; fuzzy ones have their suggestions stored for later
+// approve/deny on the item page. Movies/TV folders only.
+exports.batchFetchMetadata = async (req, res) => {
+  const { serverId, folderName } = req.params;
+  const folderRow = catalog.getFolderRow(serverId, folderName);
+  if (!folderRow) return res.status(404).json({ error: 'Folder not found' });
+  if (!metadata.hasAnyKey()) {
+    return res.json({ stub: true, message: 'No metadata provider configured. Add TMDB_API_KEY (or OMDB_API_KEY) to server/.env.' });
+  }
+  const kind = folderKind(folderName);
+  if (kind !== 'movies' && kind !== 'tv') return res.json({ done: true, total: 0, applied: 0, review: 0 });
+
+  const rows = getDb().prepare('SELECT * FROM media_items WHERE folder_id = ?').all(folderRow.id);
+  const missing = rows.filter(r => !(r.tmdb_id || r.imdb_id || r.overview || r.year));
+
+  let applied = 0, review = 0, none = 0, failed = 0;
+  for (const r of missing) {
+    const isShow = r.type === 'show' || (r.type !== 'movie' && kind === 'tv');
+    try {
+      const meta = await metadata.lookup(r.title, { isShow });
+      if (!meta || meta.stub) { none++; continue; }
+      if (meta.suggestions) {
+        catalog.setItemSuggestions(serverId, folderName, r.title, meta.suggestions);
+        review++;
+        continue;
+      }
+      meta.posterUrl = await persistPoster(folderRow, folderName, r.title, meta.posterUrl);
+      catalog.setItemMetadata(serverId, folderName, r.title, meta);
+      applied++;
+    } catch {
+      failed++;
+    }
+  }
+  const media = catalog.getFolderMedia(serverId, folderName).media;
+  res.json({ done: true, total: missing.length, applied, review, none, failed, media });
 };
 
 // POST /api/media/:serverId/:folderName/:itemTitle/rename  { newTitle }

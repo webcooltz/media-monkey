@@ -24,6 +24,10 @@ router.get('/hls-segment.ts', mediaController.hlsSegment);
 // GET directory listing for the settings folder picker
 router.get('/browse', mediaController.browseDirectory);
 
+// POST fetch metadata for all items in a folder missing it (auto-apply exact,
+// store suggestions for fuzzy). Must precede the /:serverId/:folderName routes.
+router.post('/:serverId/:folderName/fetch-all-metadata', mediaController.batchFetchMetadata);
+
 // POST fetch + store external metadata (TMDB/OMDb) for one item
 router.post('/:serverId/:folderName/:itemTitle/metadata', mediaController.fetchMetadata);
 

@@ -13,6 +13,16 @@ export interface Metadata {
   updatedAt?: string | null;
 }
 
+export interface MetadataSuggestion {
+  tmdbId: string;
+  title: string;
+  year?: string | null;
+  overview?: string | null;
+  rating?: number | null;
+  posterUrl?: string | null;
+  tmdbKind?: string;
+}
+
 export interface MediaItem {
   title: string;
   type: string;
@@ -21,6 +31,7 @@ export interface MediaItem {
   quality?: string | null;
   subtitles?: SubtitleTrack[];
   metadata?: Metadata | null;
+  suggestions?: MetadataSuggestion[]; // stored fuzzy matches awaiting approve/deny
 }
 
 export interface FolderSettings {

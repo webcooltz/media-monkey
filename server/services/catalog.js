@@ -9,6 +9,7 @@ function rowToItem(row) {
     imageUrl: row.image_url || undefined,
     mediaUrl: row.media_url || null,
     quality: scanner.qualityFromMediaUrl(row.media_url),
+    suggestions: row.suggestions_json ? JSON.parse(row.suggestions_json) : undefined,
     subtitles: row.subtitles ? JSON.parse(row.subtitles) : [],
     metadata: hasMeta ? {
       tmdbId: row.tmdb_id || null,
@@ -199,7 +200,8 @@ function setItemMetadata(serverId, folderName, itemTitle, meta) {
     `UPDATE media_items SET
        tmdb_id = ?, imdb_id = ?, overview = ?, year = ?, rating = ?,
        image_url = COALESCE(?, image_url),
-       metadata_json = ?, metadata_updated_at = datetime('now')
+       metadata_json = ?, metadata_updated_at = datetime('now'),
+       suggestions_json = NULL
      WHERE id = ?`
   ).run(
     meta.tmdbId || null,
@@ -215,6 +217,18 @@ function setItemMetadata(serverId, folderName, itemTitle, meta) {
 }
 
 // Point a stored item at a new cover image (used after a cover upload).
+// Store fuzzy-match suggestions for later approve/deny (null clears them).
+function setItemSuggestions(serverId, folderName, itemTitle, suggestions) {
+  const db = getDb();
+  const folderRow = getFolderRow(serverId, folderName);
+  if (!folderRow) return { error: 'Folder not found' };
+  const item = db.prepare('SELECT id FROM media_items WHERE folder_id = ? AND title = ?').get(folderRow.id, itemTitle);
+  if (!item) return { error: 'Item not found' };
+  db.prepare('UPDATE media_items SET suggestions_json = ? WHERE id = ?')
+    .run(suggestions && suggestions.length ? JSON.stringify(suggestions) : null, item.id);
+  return { ok: true };
+}
+
 function setItemImage(serverId, folderName, itemTitle, imageUrl) {
   const db = getDb();
   const folderRow = getFolderRow(serverId, folderName);
@@ -232,6 +246,7 @@ module.exports = {
   getFolderRow,
   saveSettings,
   setItemMetadata,
+  setItemSuggestions,
   setItemImage,
   rowToItem,
 };
