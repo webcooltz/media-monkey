@@ -18,6 +18,8 @@ Code is done (password auth, client served by server). Remaining is Pi-side ops.
    git clone https://github.com/webcooltz/media-monkey.git
    cd media-monkey
    npm run setup      # installs client+server deps, builds the client
+   sudo apt install -y ffmpeg   # for on-the-fly remux streaming (mkv/avi → mp4)
+   ffmpeg -version && ffprobe -version   # both on PATH → streaming works out of the box
    ```
 
 3. **Mount the media drive** (Windows D:/E: → under /mnt on the Pi)
@@ -28,7 +30,7 @@ Code is done (password auth, client served by server). Remaining is Pi-side ops.
    ```
    Auto-mount on boot: add a line to `/etc/fstab` (needs the drive's filesystem/UUID).
 
-4. **Set the password**
+4. **Set the password** *(optional under Tailscale — see decision below)*
    ```bash
    cp server/.env.example server/.env
    nano server/.env
@@ -37,8 +39,20 @@ Code is done (password auth, client served by server). Remaining is Pi-side ops.
    AUTH_PASSWORD=your-strong-password
    AUTH_COOKIE_SECURE=true
    ```
+   **Me-only via Tailscale:** Tailscale is already a private encrypted network, so
+   the app password is redundant. Leave `AUTH_PASSWORD` **blank** — `authEnabled()`
+   returns false, no login flow. Only set it if you later expose the app publicly.
 
-5. **Run as a service (survives reboot)** — pm2 config already in repo
+5. **Run as a service (survives reboot)** — pick systemd *or* pm2
+
+   **systemd** (native, no extra global dep — unit file `media-monkey.service` in repo):
+   ```bash
+   sudo cp media-monkey.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now media-monkey
+   journalctl -u media-monkey -f
+   ```
+   **pm2** (alternative):
    ```bash
    sudo npm install -g pm2
    pm2 start ecosystem.config.js
@@ -50,10 +64,32 @@ Code is done (password auth, client served by server). Remaining is Pi-side ops.
 
 6. **Verify locally before exposing**
    ```bash
-   curl -s http://localhost:5000/api/auth/status   # {"authRequired":true,...}
+   curl -s http://localhost:5000/api/auth/status   # blank password → {"authRequired":false}
    ```
 
-### HTTPS + external access — pick ONE
+> **Don't build on the Pi if RAM ≤ 2GB.** `npm run build` (tsc + vite) can OOM.
+> Build `client/dist` on your desktop and `rsync` it to the Pi, or add swap +
+> `NODE_OPTIONS=--max-old-space-size=512` before building.
+
+### HTTPS + external access
+
+**DECIDED: Tailscale (me + my devices only).** Private encrypted mesh — nothing
+exposed publicly, no domain, no static IP, no port-forwarding. Leave `AUTH_PASSWORD`
+blank (Tailscale is the auth layer).
+```bash
+# on the Pi
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+sudo tailscale cert <pi>.<tailnet>.ts.net    # HTTPS cert (optional)
+```
+Install Tailscale on phone/laptop → reach `http://<pi>.<tailnet>.ts.net:5000`
+(or `tailscale serve` to front it with HTTPS on 443). Look into MagicDNS +
+`tailscale serve`. `tailscale funnel` = optional public exposure if that changes.
+
+---
+
+The public-hosting tracks below are kept for reference only (needed only if
+access model changes to shared/public):
 
 **Track A — Cloudflare Tunnel** (easiest, no port-forwarding; needs a domain on Cloudflare)
 ```bash
@@ -164,6 +200,67 @@ parts; least recommended.
 ## Future / not started
 
 - `/etc/fstab` auto-mount line for the media drive
-- Subtitle download/import from OpenSubtitles (search works; download stubbed)
 - cleanvid as an async job with progress UI
-- Persist seasons/episodes/collection children in the DB (currently scanned per request)
+- **Transcode phase 2b — offline batch** (the remaining transcode route): pre-convert
+  incompatible files to web-h264 mp4 once (overnight), so they Direct Play with zero
+  per-stream CPU. Best fit for a Pi; complements the live HLS path (now done — see
+  Done). Needs a job queue + progress UI + rescan to pick up the converted file.
+
+## Done
+
+- **Collections tab (movies + TV shows):** new 🗂️ Collections nav tab + `/api/collections`.
+  A collection groups items across folders — **virtual**, nothing on disk moves.
+  Members merge two sources: year-less movie-collection folders (e.g. `D:\Movies\Karate Kid`)
+  contribute their movies, and users attach any movie/show from any folder
+  (`collection_members` table; a same-named `collections` row is created lazily).
+  Movies tab now shows **only movies** — collection folders moved to the Collections
+  tab. Items still appear in their own tabs (Cobra Kai stays under TV Shows AND in the
+  Karate Kid collection). Collection page has an add-picker + per-attached-item remove.
+- **Video quality badges:** resolution parsed from filenames (…1080p…, …2160p 4K…) →
+  corner badge on posters everywhere. Instant, no ffprobe. Null when the name has no tag.
+- **Season poster covers from TMDB:** show page has **🖼️ Fetch season posters (TMDB)**.
+  One `/tv/{id}` call returns every season's poster; each is saved as `poster.jpg` in
+  its season folder (matched by season number parsed from the folder name — "Season 1",
+  "Specials"→0), kept on disk + shown as the season cover on rescan. Needs `TMDB_API_KEY`;
+  degrades to a clear message otherwise. `POST /:sid/:folder/:show/season-posters`.
+- **Subtitle download from OpenSubtitles:** search (`find-subtitles`) already worked;
+  download is now wired. `POST /:serverId/:folderName/:itemTitle/subtitles { fileId }`
+  logs into OpenSubtitles (cached bearer token from `OPENSUBTITLES_USERNAME`/`PASSWORD`),
+  hits `/download` for a temporary link, fetches the `.srt`, and **saves it into the
+  item's folder** (unique-named, sanitized). A folder rescan then makes it a tracked
+  subtitle track, so it's kept on disk + auto-loads on playback. Item page shows a
+  **⬇ Download** button per search result. Needs the API key (search) + account
+  login (download); degrades to a clear message otherwise.
+  - **TV episodes** covered too: per-episode **🔍 Find subs** on the season page.
+    Season/episode numbers are parsed from the episode filename (S01E02 / 1x02) to
+    query OpenSubtitles precisely; the `.srt` saves beside the episode file named to
+    slug-match it, and only that season's cache is busted on rescan.
+- **Transcode phase 2a — live HLS transcode w/ true seek:** files whose video codec
+  can't remux (HEVC/AV1/…) now stream as **on-demand HLS** instead of a `415`. Client
+  calls `GET /api/media/streaminfo` first, which returns `{ mode }`:
+  - `directplay` → raw `/media` (full seek) · `remux` → stream-copy mp4 pipe (start-only)
+  - `hls` → `GET /api/media/hls.m3u8` VOD playlist; player loads it via **hls.js**
+    (native HLS on Safari). Each 6s segment (`GET /api/media/hls-segment.ts?i=`) is
+    transcoded to h264/aac mpegts **on demand** — only watched time costs CPU, and any
+    segment is independently seekable → **true seek + resume** on transcoded streams.
+  - Encoder auto-picks Pi 4 HW `h264_v4l2m2m` when present, else `libx264`
+    (override via `FFMPEG_HW_ENCODER`). Segment uses input-seek + `-output_ts_offset`
+    (not `-copyts`, which drops all frames when combined with `-t`) for a continuous
+    timeline. Remaining transcode work is offline batch — see Future (phase 2b).
+- **Pi tuning:** cache headers on `/media` + hashed static assets (browser caches
+  posters, spares Pi CPU/SD); `child_cache` table caches season/episode/collection
+  scans (no per-request disk walk on slow storage; `?refresh=1` busts it,
+  auto-invalidated on folder rescan / settings change); `media-monkey.service`
+  systemd unit; Tailscale chosen for me-only access (leave `AUTH_PASSWORD` blank).
+- **Remux-on-the-fly streaming:** non-directplay video (mkv/avi/…) routes through
+  `GET /api/media/stream`, which probes with ffprobe and:
+  - h264 video → **stream-copy remux** into fragmented mp4 (near-zero CPU, plays in
+    browser; audio kept if aac/mp3, else re-encoded to aac).
+  - directplay containers (mp4/m4v/webm) → 302 redirect to raw `/media` (full seek).
+  - HEVC/AV1/other → now served via on-demand HLS transcode (see Transcode phase 2a).
+  - ffmpeg missing → falls back to raw `/media` redirect.
+
+  Needs `ffmpeg`+`ffprobe` on the host (override paths via `FFMPEG_CMD`/`FFPROBE_CMD`).
+  Remuxed streams aren't byte-range seekable → resume/scrub limited (player shows a
+  note); directplay files keep full seek. **Existing mkv items need one Save & Rescan
+  to pick up the new stream URLs** (top-level rows store the URL; episodes rescan live).
