@@ -92,18 +92,66 @@ const MediaItemPage: React.FC<MediaItemPageProps> = ({ serverId, folderName, ite
     <div className="media-item-page">
       <button className="back-btn" onClick={onBack}>&larr; Back</button>
 
-      <div style={{ marginBottom: 16 }}>
-        <Poster src={item.imageUrl} alt={item.title} width={220} height={330} />
-        {canEditCover && <Button onClick={() => setEditingCover(true)} style={{ marginTop: 8 }}>🖼️ Change cover</Button>}
-      </div>
+      <div className="item-header">
+        <div className="item-header__poster">
+          <Poster src={item.imageUrl} alt={item.title} width={260} height={390} />
+          {canEditCover && <Button onClick={() => setEditingCover(true)}>🖼️ Change cover</Button>}
+        </div>
 
-      <h1>{item.title}</h1>
-      {item.mediaUrl && (
-        <Button variant="primary" style={{ marginBottom: 24, marginRight: 12 }}
-          onClick={() => onPlay(item.title, item.mediaUrl as string, item.imageUrl, item.subtitles)}>
-          Play
-        </Button>
-      )}
+        <div className="item-header__info">
+          <h1>{item.title}</h1>
+          {item.mediaUrl && (
+            <Button variant="primary" style={{ marginBottom: 16 }}
+              onClick={() => onPlay(item.title, item.mediaUrl as string, item.imageUrl, item.subtitles)}>
+              ▶ Play
+            </Button>
+          )}
+
+          <Panel
+            title="Info"
+            actions={<Button onClick={fetchMetadata} disabled={fetchingMeta}>{fetchingMeta ? 'Fetching…' : '🔎 Fetch info (TMDB/IMDB)'}</Button>}
+          >
+            {item.metadata ? (
+              <div style={{ fontSize: 14 }}>
+                <div style={{ marginBottom: 6 }}>
+                  {item.metadata.year && <span style={{ marginRight: 16 }}><strong>Year:</strong> {item.metadata.year}</span>}
+                  {item.metadata.rating != null && <span style={{ marginRight: 16 }}><strong>Rating:</strong> ⭐ {item.metadata.rating}</span>}
+                  {item.metadata.imdbId && <a href={`https://www.imdb.com/title/${item.metadata.imdbId}`} target="_blank" rel="noreferrer">IMDB ↗</a>}
+                </div>
+                {item.metadata.overview && <p style={{ margin: 0 }}>{item.metadata.overview}</p>}
+              </div>
+            ) : (
+              <p className="mm-muted">No metadata yet. Click fetch to look it up.</p>
+            )}
+            {metaStatus && <p className="mm-status">{metaStatus}</p>}
+          </Panel>
+
+          {item.type !== 'collection' && (
+            <Panel
+              title="Subtitles"
+              actions={
+                <>
+                  <Button onClick={findSubtitles} disabled={busy === 'subs'}>{busy === 'subs' ? 'Searching…' : '🔍 Find online'}</Button>
+                  {item.mediaUrl && <Button onClick={runCleanvid} disabled={busy === 'cv'} title="Mute/remove profanity (cleanvid)">{busy === 'cv' ? 'Cleaning…' : '🧼 cleanvid'}</Button>}
+                </>
+              }
+            >
+              {item.subtitles && item.subtitles.length > 0 ? (
+                <ul>{item.subtitles.map(t => <li key={t.url}>{t.fileName}</li>)}</ul>
+              ) : (
+                <p className="mm-muted">No local subtitle files found for this item.</p>
+              )}
+              {subStatus && <p className="mm-status">{subStatus}</p>}
+              {subResults && subResults.length > 0 && (
+                <ul style={{ marginTop: 8, fontSize: 13 }}>
+                  {subResults.map(r => <li key={r.id}>{r.language} — {r.release} {r.downloads != null ? `(${r.downloads} dl)` : ''}</li>)}
+                </ul>
+              )}
+              {cvStatus && <p className="mm-status" style={{ wordBreak: 'break-all' }}>{cvStatus}</p>}
+            </Panel>
+          )}
+        </div>
+      </div>
 
       {editingCover && (
         <CoverEditor
@@ -113,50 +161,6 @@ const MediaItemPage: React.FC<MediaItemPageProps> = ({ serverId, folderName, ite
           onClose={() => setEditingCover(false)}
           onSaved={(imageUrl) => { updateItem({ imageUrl }); setEditingCover(false); }}
         />
-      )}
-
-      <Panel
-        title="Info"
-        actions={<Button onClick={fetchMetadata} disabled={fetchingMeta}>{fetchingMeta ? 'Fetching…' : '🔎 Fetch info (TMDB/IMDB)'}</Button>}
-      >
-        {item.metadata ? (
-          <div style={{ fontSize: 14 }}>
-            <div style={{ marginBottom: 6 }}>
-              {item.metadata.year && <span style={{ marginRight: 16 }}><strong>Year:</strong> {item.metadata.year}</span>}
-              {item.metadata.rating != null && <span style={{ marginRight: 16 }}><strong>Rating:</strong> ⭐ {item.metadata.rating}</span>}
-              {item.metadata.imdbId && <a href={`https://www.imdb.com/title/${item.metadata.imdbId}`} target="_blank" rel="noreferrer">IMDB ↗</a>}
-            </div>
-            {item.metadata.overview && <p style={{ margin: 0 }}>{item.metadata.overview}</p>}
-          </div>
-        ) : (
-          <p className="mm-muted">No metadata yet. Click fetch to look it up.</p>
-        )}
-        {metaStatus && <p className="mm-status">{metaStatus}</p>}
-      </Panel>
-
-      {item.type !== 'collection' && (
-        <Panel
-          title="Subtitles"
-          actions={
-            <>
-              <Button onClick={findSubtitles} disabled={busy === 'subs'}>{busy === 'subs' ? 'Searching…' : '🔍 Find online'}</Button>
-              {item.mediaUrl && <Button onClick={runCleanvid} disabled={busy === 'cv'} title="Mute/remove profanity (cleanvid)">{busy === 'cv' ? 'Cleaning…' : '🧼 cleanvid'}</Button>}
-            </>
-          }
-        >
-          {item.subtitles && item.subtitles.length > 0 ? (
-            <ul>{item.subtitles.map(t => <li key={t.url}>{t.fileName}</li>)}</ul>
-          ) : (
-            <p className="mm-muted">No local subtitle files found for this item.</p>
-          )}
-          {subStatus && <p className="mm-status">{subStatus}</p>}
-          {subResults && subResults.length > 0 && (
-            <ul style={{ marginTop: 8, fontSize: 13 }}>
-              {subResults.map(r => <li key={r.id}>{r.language} — {r.release} {r.downloads != null ? `(${r.downloads} dl)` : ''}</li>)}
-            </ul>
-          )}
-          {cvStatus && <p className="mm-status" style={{ wordBreak: 'break-all' }}>{cvStatus}</p>}
-        </Panel>
       )}
 
       {seasons.length > 0 && item.type === 'collection' && (
