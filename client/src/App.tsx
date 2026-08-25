@@ -5,13 +5,15 @@ import Folder from './components/Folder';
 import MediaItemPage from './components/MediaItemPage';
 import SeasonPage from './components/SeasonPage';
 import MediaPlayerPage from './components/MediaPlayerPage';
+import CollectionsPage from './components/CollectionsPage';
+import CollectionPage from './components/CollectionPage';
 import SettingsPage from './components/SettingsPage';
 import SidePanel from './components/SidePanel';
 import LoginPage from './components/LoginPage';
 import { paths } from './routes';
 import { api, setUnauthorizedHandler } from './api';
 import { mediaCategories, categoryForFolder } from './mediaCategories';
-import type { MediaItemWithSource, ServerSettings, SubtitleTrack } from './types';
+import type { CollectionSummary, MediaItemWithSource, ServerSettings, SubtitleTrack } from './types';
 import './App.css';
 
 // Shared play navigation (subtitles ride along in history state).
@@ -24,6 +26,8 @@ function usePlay() {
 function HomePage({ servers }: { servers: ServerSettings[] | null }) {
   const navigate = useNavigate();
   const rowRef = useRef<Record<string, HTMLDivElement | null>>({});
+  const [collections, setCollections] = useState<CollectionSummary[]>([]);
+  useEffect(() => { api.getCollections().then(d => setCollections(d.collections)).catch(() => {}); }, []);
 
   const buckets: Record<string, MediaItemWithSource[]> = Object.fromEntries(mediaCategories.map(c => [c.key, []]));
   servers?.forEach(server => server.folders.forEach(folder => {
@@ -55,6 +59,20 @@ function HomePage({ servers }: { servers: ServerSettings[] | null }) {
         <p>Browse and manage your personal collection</p>
       </header>
       <section className="media-lists">
+        {collections.length > 0 && (
+          <div className="media-list" key="collections">
+            <h2>Collections</h2>
+            <div className="media-row-wrapper">
+              <div className="media-row">
+                {collections.map((c, i) => (
+                  <div key={'coll-' + i} style={{ cursor: 'pointer' }} onClick={() => navigate(paths.collection(c.name))}>
+                    <MediaCard item={{ title: c.name, type: 'collection', imageUrl: c.imageUrl || undefined }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         {mediaCategories.map(cat => (
           <div className="media-list" key={cat.key}>
             <h2>{cat.label}</h2>
@@ -92,6 +110,7 @@ function ItemRoute() {
       onBack={() => navigate(paths.folder(serverId, folderName))}
       onSelectSeason={(seasonName) => navigate(paths.season(serverId, folderName, itemTitle, seasonName))}
       onPlay={play}
+      onRenamed={(newTitle) => navigate(paths.item(serverId, folderName, newTitle), { replace: true })}
     />
   );
 }
@@ -127,6 +146,26 @@ function PlayerRoute() {
       posterUrl={params.get('poster') || undefined}
       subtitles={subtitles}
       onBack={() => navigate(-1)}
+    />
+  );
+}
+
+function CollectionsRoute() {
+  const navigate = useNavigate();
+  return <CollectionsPage onOpen={(name) => navigate(paths.collection(name))} />;
+}
+
+function CollectionRoute() {
+  const { name = '' } = useParams();
+  const navigate = useNavigate();
+  const play = usePlay();
+  return (
+    <CollectionPage
+      key={name}
+      name={name}
+      onBack={() => navigate(paths.collections())}
+      onPlay={play}
+      onOpenItem={(serverId, folderName, itemTitle) => navigate(paths.item(serverId, folderName, itemTitle))}
     />
   );
 }
@@ -190,6 +229,8 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage servers={servers} />} />
           <Route path="/settings" element={servers ? <SettingsPage servers={servers} onSaved={setServers} /> : <div style={{ padding: '2rem' }}>Loading...</div>} />
+          <Route path="/collections" element={<CollectionsRoute />} />
+          <Route path="/collection/:name" element={<CollectionRoute />} />
           <Route path="/server/:serverId" element={<ServerRoute servers={servers} />} />
           <Route path="/folder/:serverId/:folderName" element={<FolderRoute />} />
           <Route path="/item/:serverId/:folderName/:itemTitle" element={<ItemRoute />} />

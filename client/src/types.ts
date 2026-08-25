@@ -18,6 +18,7 @@ export interface MediaItem {
   type: string;
   imageUrl?: string;
   mediaUrl?: string | null;
+  quality?: string | null;
   subtitles?: SubtitleTrack[];
   metadata?: Metadata | null;
 }
@@ -47,3 +48,27 @@ export interface BrowseResponse {
 }
 
 export type MediaItemWithSource = MediaItem & { serverId: string; folderName: string };
+
+export interface CollectionSummary {
+  name: string;
+  hasDisk: boolean;
+  count: number;
+  imageUrl?: string | null;
+}
+
+// A collection member: disk movies play directly; attached items carry itemTitle
+// so they can navigate to their own item page.
+export interface CollectionMember extends MediaItem {
+  serverId: string;
+  folderName: string;
+  itemTitle?: string;
+  source: 'disk' | 'attached';
+  missing?: boolean;
+}
+
+export interface CollectionDetail {
+  name: string;
+  hasDisk: boolean;
+  coverUrl?: string | null;
+  members: CollectionMember[];
+}

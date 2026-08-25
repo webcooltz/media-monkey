@@ -14,11 +14,13 @@ interface CoverEditorProps {
   serverId: string;
   folderName: string;
   itemTitle: string;
+  seasonName?: string; // when set, edits that season's cover instead of the item's
+  currentImageUrl?: string; // preload the existing cover so it can be re-cropped
   onClose: () => void;
   onSaved: (imageUrl: string) => void;
 }
 
-const CoverEditor: React.FC<CoverEditorProps> = ({ serverId, folderName, itemTitle, onClose, onSaved }) => {
+const CoverEditor: React.FC<CoverEditorProps> = ({ serverId, folderName, itemTitle, seasonName, currentImageUrl, onClose, onSaved }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const [baseScale, setBaseScale] = useState(1);
@@ -41,21 +43,35 @@ const CoverEditor: React.FC<CoverEditorProps> = ({ serverId, folderName, itemTit
 
   useEffect(() => { redraw(); }, [redraw]);
 
+  // Center + "cover"-fit a loaded image on the 2:3 canvas.
+  const frameImage = useCallback((image: HTMLImageElement) => {
+    const cover = Math.max(CW / image.width, CH / image.height);
+    setImg(image);
+    setBaseScale(cover);
+    setScale(cover);
+    setTx((CW - image.width * cover) / 2);
+    setTy((CH - image.height * cover) / 2);
+  }, []);
+
+  // Preload the current cover so the user can re-crop the existing image (not just
+  // fresh uploads). crossOrigin keeps the canvas untainted so toDataURL still works
+  // (server sends CORS headers; /media is cross-origin in dev).
+  useEffect(() => {
+    if (!currentImageUrl) return;
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.onload = () => frameImage(image);
+    image.onerror = () => setError('Could not load the current image for cropping.');
+    image.src = currentImageUrl;
+  }, [currentImageUrl, frameImage]);
+
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setError(null);
     const url = URL.createObjectURL(file);
     const image = new Image();
-    image.onload = () => {
-      const cover = Math.max(CW / image.width, CH / image.height);
-      setImg(image);
-      setBaseScale(cover);
-      setScale(cover);
-      setTx((CW - image.width * cover) / 2);
-      setTy((CH - image.height * cover) / 2);
-      URL.revokeObjectURL(url);
-    };
+    image.onload = () => { frameImage(image); URL.revokeObjectURL(url); };
     image.src = url;
   };
 
@@ -91,8 +107,10 @@ const CoverEditor: React.FC<CoverEditorProps> = ({ serverId, folderName, itemTit
     setError(null);
     try {
       const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-      const data = await api.uploadCover(serverId, folderName, itemTitle, dataUrl);
-      onSaved(data.imageUrl);
+      const data = seasonName
+        ? await api.uploadSeasonCover(serverId, folderName, itemTitle, seasonName, dataUrl)
+        : await api.uploadCover(serverId, folderName, itemTitle, dataUrl);
+      onSaved(data.imageUrl || '');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Upload failed');
     } finally {
@@ -102,7 +120,7 @@ const CoverEditor: React.FC<CoverEditorProps> = ({ serverId, folderName, itemTit
 
   return (
     <Modal
-      title="Edit cover"
+      title={seasonName ? `Edit cover — ${seasonName}` : 'Edit cover'}
       onClose={onClose}
       width={380}
       footer={
@@ -112,7 +130,10 @@ const CoverEditor: React.FC<CoverEditorProps> = ({ serverId, folderName, itemTit
         </>
       }
     >
-      <input type="file" accept="image/*" onChange={onFile} style={{ marginBottom: 12 }} />
+      <label style={{ display: 'block', fontSize: 12, color: 'var(--text)', marginBottom: 12 }}>
+        {img ? 'Replace image (optional):' : 'Choose an image:'}
+        <input type="file" accept="image/*" onChange={onFile} style={{ display: 'block', marginTop: 4 }} />
+      </label>
 
       <div style={{ position: 'relative', width: DISPLAY_W, height: DISPLAY_H, margin: '0 auto 12px', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', background: '#111' }}>
         <canvas
@@ -137,7 +158,7 @@ const CoverEditor: React.FC<CoverEditorProps> = ({ serverId, folderName, itemTit
           <input type="range" min={baseScale} max={baseScale * 4} step={baseScale / 100} value={scale} onChange={onZoom} style={{ flex: 1 }} />
         </div>
       )}
-      <p className="mm-muted" style={{ fontSize: 12 }}>Drag to reposition, zoom to fit. Saved as the item's cover.</p>
+      <p className="mm-muted" style={{ fontSize: 12 }}>Crop the current image — drag to reposition, zoom to fit. Or replace it above. Saved as the item's cover.</p>
       {error && <p style={{ color: '#e77', fontSize: 13 }}>{error}</p>}
     </Modal>
   );

@@ -32,6 +32,11 @@ const SidePanel: React.FC<SidePanelProps> = ({ servers, openFolderMenu, setOpenF
               </button>
             </div>
             <ul className="folder-list">
+              <li className="folder-list-item">
+                <div className="folder-row">
+                  <button className="folder-btn" onClick={() => navigate(paths.collections())}>🗂️ Collections</button>
+                </div>
+              </li>
               {server.folders.map(folder => (
                 <li key={folder.name} className="folder-list-item" style={{ position: 'relative' }}>
                   <div className="folder-row">

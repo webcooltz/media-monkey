@@ -11,4 +11,6 @@ export const paths = {
     `/item/${enc(sid)}/${enc(folder)}/${enc(title)}/season/${enc(season)}`,
   play: (title: string, src: string, poster?: string) =>
     `/play?src=${enc(src)}&title=${enc(title)}${poster ? `&poster=${enc(poster)}` : ''}`,
+  collections: () => '/collections',
+  collection: (name: string) => `/collection/${enc(name)}`,
 };

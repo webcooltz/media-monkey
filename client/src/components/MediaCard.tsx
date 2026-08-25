@@ -3,13 +3,13 @@ import Poster from './ui/Poster';
 import type { MediaItem } from '../types';
 
 interface MediaCardProps {
-  item: Pick<MediaItem, 'title' | 'type' | 'imageUrl'>;
+  item: Pick<MediaItem, 'title' | 'type' | 'imageUrl' | 'quality'>;
   style?: React.CSSProperties;
 }
 
 const MediaCard: React.FC<MediaCardProps> = ({ item, style }) => (
   <div className="media-grid-item" style={style}>
-    <Poster src={item.imageUrl} alt={item.title} />
+    <Poster src={item.imageUrl} alt={item.title} quality={item.quality} />
     <div className="media-title">{item.title}</div>
   </div>
 );
