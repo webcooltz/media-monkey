@@ -8,6 +8,7 @@ function rowToItem(row) {
     type: row.type,
     imageUrl: row.image_url || undefined,
     mediaUrl: row.media_url || null,
+    quality: scanner.qualityFromMediaUrl(row.media_url),
     subtitles: row.subtitles ? JSON.parse(row.subtitles) : [],
     metadata: hasMeta ? {
       tmdbId: row.tmdb_id || null,
@@ -86,7 +87,31 @@ function refreshFolder(serverId, folderRow) {
     db.exec('ROLLBACK');
     throw e;
   }
+  clearChildCache(folderRow.id); // disk changed — drop stale season/episode caches
   return itemsForFolder(folderRow.id).map(rowToItem);
+}
+
+// Return cached child scan (seasons/episodes/collection movies) or scan on miss.
+// `scanFn` walks disk; its result is JSON-cached under (folder_id, cacheKey).
+function getChildren(folderRow, cacheKey, scanFn, { refresh = false } = {}) {
+  const db = getDb();
+  if (!refresh) {
+    const row = db.prepare('SELECT payload FROM child_cache WHERE folder_id = ? AND cache_key = ?')
+      .get(folderRow.id, cacheKey);
+    if (row) return JSON.parse(row.payload);
+  }
+  const media = scanFn();
+  db.prepare(
+    `INSERT INTO child_cache (folder_id, cache_key, payload, scanned_at)
+     VALUES (?, ?, ?, datetime('now'))
+     ON CONFLICT(folder_id, cache_key) DO UPDATE SET
+       payload = excluded.payload, scanned_at = excluded.scanned_at`
+  ).run(folderRow.id, cacheKey, JSON.stringify(media));
+  return media;
+}
+
+function clearChildCache(folderId) {
+  getDb().prepare('DELETE FROM child_cache WHERE folder_id = ?').run(folderId);
 }
 
 // GET /api/media — all servers with folders + (additively synced) media.
@@ -155,6 +180,7 @@ function saveSettings(servers) {
         upsertFolder.run(server.id, folder.name, folder.mediaLocation || '', fi);
       });
     });
+    db.exec('DELETE FROM child_cache'); // folder paths may have changed — rebuild lazily
     db.exec('COMMIT');
   } catch (e) {
     db.exec('ROLLBACK');
@@ -202,6 +228,7 @@ function setItemImage(serverId, folderName, itemTitle, imageUrl) {
 module.exports = {
   getServersWithMedia,
   getFolderMedia,
+  getChildren,
   getFolderRow,
   saveSettings,
   setItemMetadata,

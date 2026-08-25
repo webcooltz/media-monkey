@@ -5,6 +5,8 @@ const path = require('path');
 const config = require('./config');
 const { getDb } = require('./db');
 const mediaRoutes = require('./routes/media');
+const collectionRoutes = require('./routes/collections');
+const keyStatus = require('./services/keyStatus');
 const auth = require('./auth');
 
 const app = express();
@@ -70,15 +72,27 @@ app.use('/media', auth.requireAuth, (req, res, next) => {
     return res.status(404).send('Media file not found');
   }
 
-  return res.sendFile(targetPath);
+  // Cache posters/media on the client so grid scrolls don't re-hit the Pi's CPU + SD.
+  return res.sendFile(targetPath, { maxAge: '7d' });
 });
 
 app.use('/api/media', auth.requireAuth, mediaRoutes);
+app.use('/api/collections', auth.requireAuth, collectionRoutes);
+
+// API-key status for the Settings page (configured/valid + OpenSubtitles remaining).
+app.get('/api/keys/status', auth.requireAuth, async (req, res) => {
+  try {
+    res.json(await keyStatus.all());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // Serve built React client in production
 const clientDistPath = path.join(__dirname, '../client/dist');
 if (fs.existsSync(clientDistPath)) {
-  app.use(express.static(clientDistPath));
+  // Vite emits content-hashed asset filenames, so long-cache them; index.html stays fresh.
+  app.use(express.static(clientDistPath, { maxAge: '30d', index: false }));
   app.use((req, res) => {
     res.sendFile(path.join(clientDistPath, 'index.html'));
   });

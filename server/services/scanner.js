@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { imageExtensions, playableExtensions, subtitleExtensions, folderKind } = require('../constants');
+const { imageExtensions, playableExtensions, subtitleExtensions, directPlayContainers, folderKind } = require('../constants');
 
 function toSlug(value) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -8,6 +8,24 @@ function toSlug(value) {
 
 function buildMediaUrl(folderName, pathSegments) {
   return `/media/${[folderName, ...pathSegments].map(segment => encodeURIComponent(segment)).join('/')}`;
+}
+
+function buildStreamUrl(serverId, folderName, relSegments) {
+  const searchParams = new URLSearchParams({
+    serverId,
+    folderName,
+    path: relSegments.join('/'),
+  });
+  return `/api/media/stream?${searchParams.toString()}`;
+}
+
+// Playback URL for a video file: raw /media for directplay containers (full seek),
+// else the remux/transcode stream endpoint. `relSegments` = path within the folder.
+function buildPlayUrl(serverId, folderName, relSegments) {
+  const ext = path.extname(relSegments[relSegments.length - 1]).toLowerCase();
+  return directPlayContainers.includes(ext)
+    ? buildMediaUrl(folderName, relSegments)
+    : buildStreamUrl(serverId, folderName, relSegments);
 }
 
 function buildSubtitleUrl(serverId, folderName, pathSegments) {
@@ -24,16 +42,6 @@ function findImageFile(dir, folderName, pathSegments = [path.basename(dir)]) {
     const files = fs.readdirSync(dir);
     const imageFile = files.find(file => imageExtensions.includes(path.extname(file).toLowerCase()));
     return imageFile ? buildMediaUrl(folderName, [...pathSegments, imageFile]) : null;
-  } catch {
-    return null;
-  }
-}
-
-function findPlayableFile(dir, folderName, pathSegments = [path.basename(dir)]) {
-  try {
-    const files = fs.readdirSync(dir);
-    const playableFile = files.find(file => playableExtensions.includes(path.extname(file).toLowerCase()));
-    return playableFile ? buildMediaUrl(folderName, [...pathSegments, playableFile]) : null;
   } catch {
     return null;
   }
@@ -76,6 +84,33 @@ function findSubtitleFiles(dir, serverId, folderName, pathSegments = [], mediaFi
   }
 }
 
+// Best-effort video quality from a filename (no probing — instant, Pi-friendly).
+// Most releases tag resolution in the name (…1080p…, …2160p 4K…). Null if absent.
+function qualityFromName(name) {
+  const n = String(name).toLowerCase();
+  if (/\b(2160p|4k|uhd)\b/.test(n)) return '4K';
+  if (/\b1440p\b/.test(n)) return '1440p';
+  if (/\b1080p\b/.test(n)) return '1080p';
+  if (/\b720p\b/.test(n)) return '720p';
+  if (/\b480p\b/.test(n)) return '480p';
+  return null;
+}
+
+// Pull the filename out of a stored play URL (raw /media or the stream endpoint's
+// ?path=) and derive its quality. Lets rowToItem tag quality without a DB column.
+function qualityFromMediaUrl(url) {
+  if (!url) return null;
+  let name = null;
+  if (url.startsWith('/api/media/stream')) {
+    const p = new URLSearchParams(url.slice(url.indexOf('?') + 1)).get('path');
+    if (p) name = p.split('/').pop();
+  } else {
+    const last = url.split('?')[0].split('/').pop();
+    if (last) name = decodeURIComponent(last);
+  }
+  return qualityFromName(name || '');
+}
+
 function isMovieCollection(name) {
   // A folder with no year (e.g. "Back to the Future") is a collection;
   // a folder with a year (e.g. "Bullet Train (2022)") is a single movie.
@@ -108,22 +143,44 @@ function scanFolder(serverId, folder) {
   const folderPath = folder.mediaLocation;
   const kind = folderKind(folder.name);
 
-  if (kind === 'tv' || kind === 'movies') {
-    return getFoldersInDir(folderPath).map(name => {
-      const subfolderPath = path.join(folderPath, name);
-      const isMovieType = kind === 'movies';
-      const isTvType = kind === 'tv';
-      const collection = isMovieType && isMovieCollection(name);
-      const playableFileName = isMovieType && !collection ? findPlayableFileName(subfolderPath) : null;
+  if (kind === 'tv') {
+    return getFoldersInDir(folderPath).map(name => ({
+      relPath: name,
+      title: name,
+      type: 'show',
+      imageUrl: findImageFile(path.join(folderPath, name), folder.name, [name]),
+      mediaUrl: null,
+      subtitles: [],
+    }));
+  }
+
+  if (kind === 'movies') {
+    // Movies tab shows every movie flat (ungrouped). Year-less folders are
+    // collections — flatten their child movies in here as individual items; the
+    // grouping is surfaced separately under the Collections tab.
+    const buildMovie = (relSegs) => {
+      const dir = path.join(folderPath, ...relSegs);
+      const title = relSegs[relSegs.length - 1];
+      const playable = findPlayableFileName(dir);
       return {
-        relPath: name,
-        title: name,
-        type: isTvType ? 'show' : collection ? 'collection' : 'movie',
-        imageUrl: findImageFile(subfolderPath, folder.name, [name]),
-        mediaUrl: isMovieType && !collection ? findPlayableFile(subfolderPath, folder.name, [name]) : null,
-        subtitles: isMovieType && !collection ? findSubtitleFiles(subfolderPath, serverId, folder.name, [name], playableFileName, name) : [],
+        relPath: relSegs.join('/'),
+        title,
+        type: 'movie',
+        imageUrl: findImageFile(dir, folder.name, relSegs),
+        mediaUrl: playable ? buildPlayUrl(serverId, folder.name, [...relSegs, playable]) : null,
+        quality: playable ? qualityFromName(playable) : null,
+        subtitles: findSubtitleFiles(dir, serverId, folder.name, relSegs, playable, title),
       };
-    });
+    };
+    const items = [];
+    for (const name of getFoldersInDir(folderPath)) {
+      if (isMovieCollection(name)) {
+        for (const child of getFoldersInDir(path.join(folderPath, name))) items.push(buildMovie([name, child]));
+      } else {
+        items.push(buildMovie([name]));
+      }
+    }
+    return items;
   }
 
   if (kind === 'music' || kind === 'audiobooks') {
@@ -141,6 +198,14 @@ function scanFolder(serverId, folder) {
   }
 
   return [];
+}
+
+// Year-less top-level folders in a movies-kind folder = disk movie-collections.
+// The Collections tab uses this to enumerate them (their movies are also flattened
+// into the Movies tab by scanFolder).
+function movieCollectionFolders(folder) {
+  if (folderKind(folder.name) !== 'movies') return [];
+  return getFoldersInDir(folder.mediaLocation).filter(isMovieCollection);
 }
 
 function scanShowSeasons(folder, showTitle) {
@@ -164,7 +229,8 @@ function scanCollectionMovies(serverId, folder, collectionTitle) {
       title: name,
       type: 'movie',
       imageUrl: findImageFile(moviePath, folder.name, [collectionTitle, name]),
-      mediaUrl: findPlayableFile(moviePath, folder.name, [collectionTitle, name]),
+      mediaUrl: playableFileName ? buildPlayUrl(serverId, folder.name, [collectionTitle, name, playableFileName]) : null,
+      quality: playableFileName ? qualityFromName(playableFileName) : null,
       subtitles: findSubtitleFiles(moviePath, serverId, folder.name, [collectionTitle, name], playableFileName, name),
     };
   });
@@ -178,7 +244,8 @@ function scanSeasonEpisodes(serverId, folder, showTitle, seasonName) {
       title: name.replace(/\.[^/.]+$/, ''),
       type: 'episode',
       imageUrl: null,
-      mediaUrl: buildMediaUrl(folder.name, [showTitle, seasonName, name]),
+      mediaUrl: buildPlayUrl(serverId, folder.name, [showTitle, seasonName, name]),
+      quality: qualityFromName(name),
       subtitles: findSubtitleFiles(seasonPath, serverId, folder.name, [showTitle, seasonName], name, name.replace(/\.[^/.]+$/, '')),
     }));
 }
@@ -188,6 +255,9 @@ module.exports = {
   playableExtensions,
   subtitleExtensions,
   isMovieCollection,
+  qualityFromName,
+  qualityFromMediaUrl,
+  movieCollectionFolders,
   scanFolder,
   scanShowSeasons,
   scanCollectionMovies,
