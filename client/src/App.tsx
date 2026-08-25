@@ -7,8 +7,9 @@ import SeasonPage from './components/SeasonPage';
 import MediaPlayerPage from './components/MediaPlayerPage';
 import SettingsPage from './components/SettingsPage';
 import SidePanel from './components/SidePanel';
+import LoginPage from './components/LoginPage';
 import { paths } from './routes';
-import { api } from './api';
+import { api, setUnauthorizedHandler } from './api';
 import { mediaCategories, categoryForFolder } from './mediaCategories';
 import type { MediaItemWithSource, ServerSettings, SubtitleTrack } from './types';
 import './App.css';
@@ -147,9 +148,20 @@ function App() {
   const [servers, setServers] = useState<ServerSettings[] | null>(null);
   const [openFolderMenu, setOpenFolderMenu] = useState<{ serverId: string; folder: string } | null>(null);
   const [refreshingFolder, setRefreshingFolder] = useState<{ serverId: string; folder: string } | null>(null);
+  const [auth, setAuth] = useState<{ required: boolean; authed: boolean } | null>(null);
 
   const fetchServers = () => { api.getServers().then(d => setServers(d.servers)).catch(() => {}); };
-  useEffect(() => { fetchServers(); }, []);
+
+  // Check auth once, and flip back to login if any request later returns 401.
+  useEffect(() => {
+    setUnauthorizedHandler(() => setAuth({ required: true, authed: false }));
+    api.getAuthStatus()
+      .then(s => setAuth({ required: s.authRequired, authed: s.authenticated }))
+      .catch(() => setAuth({ required: false, authed: true }));
+  }, []);
+
+  // Load the library only once authenticated.
+  useEffect(() => { if (auth?.authed) fetchServers(); }, [auth?.authed]);
 
   const refreshFolder = (serverId: string, folderName: string) => {
     setRefreshingFolder({ serverId, folder: folderName });
@@ -159,6 +171,11 @@ function App() {
       .finally(() => setRefreshingFolder(null));
   };
 
+  const logout = () => { api.logout().finally(() => { setServers(null); setAuth({ required: true, authed: false }); }); };
+
+  if (auth === null) return null; // brief: awaiting auth status
+  if (auth.required && !auth.authed) return <LoginPage onLogin={() => setAuth({ required: true, authed: true })} />;
+
   return (
     <div className="app-layout">
       <SidePanel
@@ -167,6 +184,7 @@ function App() {
         setOpenFolderMenu={setOpenFolderMenu}
         onRefreshFolder={refreshFolder}
         refreshingFolder={refreshingFolder}
+        onLogout={auth.required ? logout : undefined}
       />
       <main className="library-home">
         <Routes>

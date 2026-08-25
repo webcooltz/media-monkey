@@ -12,9 +12,10 @@ interface SidePanelProps {
   setOpenFolderMenu: (menu: { serverId: string; folder: string } | null) => void;
   onRefreshFolder: (serverId: string, folderName: string) => void;
   refreshingFolder: { serverId: string; folder: string } | null;
+  onLogout?: () => void;
 }
 
-const SidePanel: React.FC<SidePanelProps> = ({ servers, openFolderMenu, setOpenFolderMenu, onRefreshFolder, refreshingFolder }) => {
+const SidePanel: React.FC<SidePanelProps> = ({ servers, openFolderMenu, setOpenFolderMenu, onRefreshFolder, refreshingFolder, onLogout }) => {
   const navigate = useNavigate();
   return (
     <aside className="sidebar">
@@ -73,6 +74,9 @@ const SidePanel: React.FC<SidePanelProps> = ({ servers, openFolderMenu, setOpenF
           </li>
         ))}
       </ul>
+      {onLogout && (
+        <button className="sidebar-settings-btn" style={{ marginTop: 'auto' }} onClick={onLogout}>🔒 Log out</button>
+      )}
     </aside>
   );
 };

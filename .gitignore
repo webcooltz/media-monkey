@@ -8,3 +8,4 @@ npm-debug.log*
 .env
 server/data/media.db
 server/data/media.db-*
+server/data/.session-secret

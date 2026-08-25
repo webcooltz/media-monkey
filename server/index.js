@@ -5,10 +5,12 @@ const path = require('path');
 const config = require('./config');
 const { getDb } = require('./db');
 const mediaRoutes = require('./routes/media');
+const auth = require('./auth');
 
 const app = express();
 const PORT = config.PORT;
 
+// Same-origin deployment (server serves the client), so cookies stay first-party.
 app.use(cors());
 // Larger limit so base64 cover uploads fit
 app.use(express.json({ limit: '25mb' }));
@@ -16,8 +18,28 @@ app.use(express.json({ limit: '25mb' }));
 // Open the SQLite catalog (creates + migrates from settings.json on first run).
 getDb();
 
+// --- Auth (open) endpoints -------------------------------------------------
+app.get('/api/auth/status', (req, res) => {
+  res.json({ authRequired: auth.authEnabled(), authenticated: auth.isAuthed(req) });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  if (!auth.authEnabled()) return res.json({ success: true });
+  if (!auth.checkPassword(req.body && req.body.password)) {
+    return res.status(401).json({ error: 'Invalid password' });
+  }
+  res.setHeader('Set-Cookie', auth.sessionCookie(req));
+  res.json({ success: true });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  res.setHeader('Set-Cookie', auth.clearCookie());
+  res.json({ success: true });
+});
+
+// Everything below requires a valid session (when auth is enabled).
 // Serve raw media files. Resolves the folder's on-disk root from the catalog.
-app.use('/media', (req, res, next) => {
+app.use('/media', auth.requireAuth, (req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     return next();
   }
@@ -51,7 +73,7 @@ app.use('/media', (req, res, next) => {
   return res.sendFile(targetPath);
 });
 
-app.use('/api/media', mediaRoutes);
+app.use('/api/media', auth.requireAuth, mediaRoutes);
 
 // Serve built React client in production
 const clientDistPath = path.join(__dirname, '../client/dist');

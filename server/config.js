@@ -20,4 +20,9 @@ module.exports = {
   // cleanvid needs python + ffmpeg on the host; off unless explicitly enabled
   CLEANVID_ENABLED: process.env.CLEANVID_ENABLED === 'true',
   CLEANVID_CMD: process.env.CLEANVID_CMD || 'cleanvid',
+  // Auth: when AUTH_PASSWORD is set, all media/API routes require login.
+  // Leave blank for local use (no auth). SESSION_SECRET auto-generated + persisted if unset.
+  AUTH_PASSWORD: process.env.AUTH_PASSWORD || '',
+  SESSION_SECRET: process.env.SESSION_SECRET || '',
+  AUTH_COOKIE_SECURE: process.env.AUTH_COOKIE_SECURE === 'true',
 };

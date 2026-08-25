@@ -2,10 +2,16 @@ import type { BrowseResponse, MediaItem, ServerSettings, SubtitleTrack } from '.
 
 export const API_BASE = '/api';
 
+// Notified when the server rejects a request as unauthenticated (expired/missing session),
+// so the app can drop back to the login screen.
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(fn: () => void) { onUnauthorized = fn; }
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, init);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (res.status === 401 && onUnauthorized) onUnauthorized();
     throw new Error((data && (data.error as string)) || `Request failed (${res.status})`);
   }
   return data as T;
@@ -27,6 +33,10 @@ export interface SubtitleSearchResult {
 }
 
 export const api = {
+  getAuthStatus: () => request<{ authRequired: boolean; authenticated: boolean }>('/auth/status'),
+  login: (password: string) => request<{ success: boolean }>('/auth/login', json({ password })),
+  logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
+
   getServers: () => request<{ servers: ServerSettings[] }>('/media'),
 
   saveSettings: (servers: ServerSettings[]) =>

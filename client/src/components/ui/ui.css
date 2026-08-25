@@ -97,6 +97,39 @@
   padding: 0.8rem 1.1rem; border-top: 1px solid var(--border);
 }
 
+/* Login screen */
+.login-page {
+  min-height: 100vh;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  padding: 1rem;
+}
+.login-card {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  padding: 2rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+.login-card h1 { margin: 0; color: var(--accent); font-size: 1.6rem; }
+.login-input {
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 1rem;
+}
+
 /* Folder picker (uses Modal) */
 .folder-picker__path {
   font-family: var(--mono);

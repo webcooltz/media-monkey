@@ -15,6 +15,8 @@
 - [x] Cover upload + in-app adjust — CoverEditor.tsx (pan/zoom crop to 2:3), saves poster.jpg into the item's on-disk folder via POST /:sid/:folder/:title/cover; catalog image_url updated (cache-busted)
 - [x] URL routing — react-router; every page has a slash route (/item/:sid/:folder/:title, /item/.../season/:season, /folder/..., /play, /settings). Refresh restores the page (SPA fallback in vite dev + express prod)
 
+- [x] Password protection for public hosting — app-level login (crypto HMAC session cookie, timing-safe check). Off unless AUTH_PASSWORD set. Guards all /api + /media incl. filesystem browse. Login screen + logout. See HOSTING.md
+
 # Follow-ups / not finished
 
 - Subtitle IMPORT/download from OpenSubtitles (needs login-token flow) — search works, download stubbed
