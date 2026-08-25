@@ -6,7 +6,7 @@
       "folders": [
         {
           "name": "TV Shows",
-          "mediaLocation": "E:/TV Shows",
+          "mediaLocation": "D:\\TV Shows",
           "media": [
             {
               "title": "Arrow (2012)",
@@ -254,7 +254,7 @@
         },
         {
           "name": "Movies",
-          "mediaLocation": "E:/Movies",
+          "mediaLocation": "D:\\Movies",
           "media": [
             {
               "title": "1917 (2019)",

@@ -1,52 +1,22 @@
 const express = require('express');
 const cors = require('cors');
-const mediaRoutes = require('./routes/media');
 const fs = require('fs');
 const path = require('path');
+const config = require('./config');
+const { getDb } = require('./db');
+const mediaRoutes = require('./routes/media');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = config.PORT;
 
 app.use(cors());
-app.use(express.json());
+// Larger limit so base64 cover uploads fit
+app.use(express.json({ limit: '25mb' }));
 
-const settingsPath = path.join(__dirname, './data/settings.json');
+// Open the SQLite catalog (creates + migrates from settings.json on first run).
+getDb();
 
-// Create a default settings file on first run if one doesn't exist
-if (!fs.existsSync(settingsPath)) {
-  const defaultSettings = {
-    servers: [
-      {
-        id: 'server1',
-        name: 'Home Server',
-        folders: [
-          { name: 'Movies', mediaLocation: '/mnt/media/Movies' },
-          { name: 'TV Shows', mediaLocation: '/mnt/media/TV Shows' },
-          { name: 'Music', mediaLocation: '/mnt/media/Music' },
-          { name: 'Audiobooks', mediaLocation: '/mnt/media/Audiobooks' },
-        ],
-      },
-    ],
-  };
-  fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-  fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2), 'utf-8');
-  console.log('[Setup] Created default settings.json — update your media paths in the Settings page.');
-}
-
-function loadMediaFolders() {
-  try {
-    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-    return settings.servers.flatMap(server =>
-      server.folders.map(folder => ({
-        folderName: folder.name,
-        mediaLocation: folder.mediaLocation,
-      }))
-    );
-  } catch {
-    return [];
-  }
-}
-
+// Serve raw media files. Resolves the folder's on-disk root from the catalog.
 app.use('/media', (req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     return next();
@@ -60,13 +30,14 @@ app.use('/media', (req, res, next) => {
   }
 
   const [folderName, ...fileSegments] = segments;
-  const mediaFolder = loadMediaFolders().find(folder => folder.folderName === folderName);
 
-  if (!mediaFolder) {
+  // Find any folder (across servers) matching this name.
+  const folderRow = getDb().prepare('SELECT * FROM folders WHERE name = ?').get(folderName);
+  if (!folderRow || !folderRow.media_location) {
     return res.status(404).send('Media folder not found');
   }
 
-  const rootPath = path.resolve(mediaFolder.mediaLocation);
+  const rootPath = path.resolve(folderRow.media_location);
   const targetPath = path.resolve(rootPath, ...fileSegments);
 
   if (!targetPath.startsWith(rootPath + path.sep) && targetPath !== rootPath) {
@@ -80,11 +51,6 @@ app.use('/media', (req, res, next) => {
   return res.sendFile(targetPath);
 });
 
-loadMediaFolders().forEach(folder => {
-  console.log(`[Media Root] ${folder.folderName} -> ${folder.mediaLocation}`);
-});
-
-// Use media routes
 app.use('/api/media', mediaRoutes);
 
 // Serve built React client in production

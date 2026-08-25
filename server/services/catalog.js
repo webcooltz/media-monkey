@@ -1,0 +1,210 @@
+const { getDb } = require('../db');
+const scanner = require('./scanner');
+
+function rowToItem(row) {
+  const hasMeta = row.tmdb_id || row.imdb_id || row.overview || row.rating != null || row.year;
+  return {
+    title: row.title,
+    type: row.type,
+    imageUrl: row.image_url || undefined,
+    mediaUrl: row.media_url || null,
+    subtitles: row.subtitles ? JSON.parse(row.subtitles) : [],
+    metadata: hasMeta ? {
+      tmdbId: row.tmdb_id || null,
+      imdbId: row.imdb_id || null,
+      overview: row.overview || null,
+      year: row.year || null,
+      rating: row.rating != null ? row.rating : null,
+      updatedAt: row.metadata_updated_at || null,
+      extra: row.metadata_json ? JSON.parse(row.metadata_json) : null,
+    } : null,
+  };
+}
+
+function getFolderRow(serverId, folderName) {
+  return getDb()
+    .prepare('SELECT * FROM folders WHERE server_id = ? AND name = ?')
+    .get(serverId, folderName);
+}
+
+function itemsForFolder(folderId) {
+  return getDb()
+    .prepare('SELECT * FROM media_items WHERE folder_id = ? ORDER BY title COLLATE NOCASE')
+    .all(folderId);
+}
+
+// Additive: insert newly-discovered items, leave existing rows (and their metadata) untouched.
+function syncFolderAdditive(serverId, folderRow) {
+  const db = getDb();
+  const scanned = scanner.scanFolder(serverId, { name: folderRow.name, mediaLocation: folderRow.media_location });
+  const existing = new Set(db.prepare('SELECT rel_path FROM media_items WHERE folder_id = ?').all(folderRow.id).map(r => r.rel_path));
+  const insert = db.prepare(
+    `INSERT OR IGNORE INTO media_items (folder_id, rel_path, title, type, image_url, media_url, subtitles)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  );
+  db.exec('BEGIN');
+  try {
+    for (const it of scanned) {
+      if (!existing.has(it.relPath)) {
+        insert.run(folderRow.id, it.relPath, it.title, it.type, it.imageUrl || null, it.mediaUrl || null, JSON.stringify(it.subtitles || []));
+      }
+    }
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+  return itemsForFolder(folderRow.id).map(rowToItem);
+}
+
+// Refresh: full rescan — update existing rows (preserving metadata cols) and prune items gone from disk.
+function refreshFolder(serverId, folderRow) {
+  const db = getDb();
+  const scanned = scanner.scanFolder(serverId, { name: folderRow.name, mediaLocation: folderRow.media_location });
+  const scannedRel = new Set(scanned.map(s => s.relPath));
+  const upsert = db.prepare(
+    `INSERT INTO media_items (folder_id, rel_path, title, type, image_url, media_url, subtitles)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(folder_id, rel_path) DO UPDATE SET
+       title = excluded.title,
+       type = excluded.type,
+       image_url = excluded.image_url,
+       media_url = excluded.media_url,
+       subtitles = excluded.subtitles`
+  );
+  const del = db.prepare('DELETE FROM media_items WHERE id = ?');
+  db.exec('BEGIN');
+  try {
+    for (const it of scanned) {
+      upsert.run(folderRow.id, it.relPath, it.title, it.type, it.imageUrl || null, it.mediaUrl || null, JSON.stringify(it.subtitles || []));
+    }
+    for (const r of db.prepare('SELECT id, rel_path FROM media_items WHERE folder_id = ?').all(folderRow.id)) {
+      if (!scannedRel.has(r.rel_path)) del.run(r.id);
+    }
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+  return itemsForFolder(folderRow.id).map(rowToItem);
+}
+
+// GET /api/media — all servers with folders + (additively synced) media.
+function getServersWithMedia() {
+  const db = getDb();
+  const servers = db.prepare('SELECT * FROM servers ORDER BY position, name').all();
+  return servers.map(server => {
+    const folders = db.prepare('SELECT * FROM folders WHERE server_id = ? ORDER BY position, name').all(server.id);
+    return {
+      id: server.id,
+      name: server.name,
+      folders: folders.map(folder => {
+        const media = syncFolderAdditive(server.id, folder);
+        return {
+          name: folder.name,
+          mediaLocation: folder.media_location,
+          media,
+          children: media.map(m => m.title),
+        };
+      }),
+    };
+  });
+}
+
+function getFolderMedia(serverId, folderName, { refresh = false } = {}) {
+  const folderRow = getFolderRow(serverId, folderName);
+  if (!folderRow) return { error: 'Folder not found' };
+  const media = refresh ? refreshFolder(serverId, folderRow) : syncFolderAdditive(serverId, folderRow);
+  return { media };
+}
+
+// Persist Settings-page edits: upsert servers/folders, delete removed (cascading their items).
+function saveSettings(servers) {
+  const db = getDb();
+  db.exec('BEGIN');
+  try {
+    const keepServers = new Set(servers.map(s => s.id));
+    for (const s of db.prepare('SELECT id FROM servers').all()) {
+      if (!keepServers.has(s.id)) {
+        const fids = db.prepare('SELECT id FROM folders WHERE server_id = ?').all(s.id).map(f => f.id);
+        for (const fid of fids) db.prepare('DELETE FROM media_items WHERE folder_id = ?').run(fid);
+        db.prepare('DELETE FROM folders WHERE server_id = ?').run(s.id);
+        db.prepare('DELETE FROM servers WHERE id = ?').run(s.id);
+      }
+    }
+
+    const upsertServer = db.prepare(
+      `INSERT INTO servers (id, name, position) VALUES (?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET name = excluded.name, position = excluded.position`
+    );
+    const upsertFolder = db.prepare(
+      `INSERT INTO folders (server_id, name, media_location, position) VALUES (?, ?, ?, ?)
+       ON CONFLICT(server_id, name) DO UPDATE SET media_location = excluded.media_location, position = excluded.position`
+    );
+
+    servers.forEach((server, si) => {
+      upsertServer.run(server.id, server.name, si);
+      const keepFolders = new Set((server.folders || []).map(f => f.name));
+      for (const f of db.prepare('SELECT id, name FROM folders WHERE server_id = ?').all(server.id)) {
+        if (!keepFolders.has(f.name)) {
+          db.prepare('DELETE FROM media_items WHERE folder_id = ?').run(f.id);
+          db.prepare('DELETE FROM folders WHERE id = ?').run(f.id);
+        }
+      }
+      (server.folders || []).forEach((folder, fi) => {
+        upsertFolder.run(server.id, folder.name, folder.mediaLocation || '', fi);
+      });
+    });
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+}
+
+// Attach provider metadata to a stored item (used by the TMDB service).
+function setItemMetadata(serverId, folderName, itemTitle, meta) {
+  const db = getDb();
+  const folderRow = getFolderRow(serverId, folderName);
+  if (!folderRow) return { error: 'Folder not found' };
+  const item = db.prepare('SELECT * FROM media_items WHERE folder_id = ? AND title = ?').get(folderRow.id, itemTitle);
+  if (!item) return { error: 'Item not found' };
+  db.prepare(
+    `UPDATE media_items SET
+       tmdb_id = ?, imdb_id = ?, overview = ?, year = ?, rating = ?,
+       image_url = COALESCE(?, image_url),
+       metadata_json = ?, metadata_updated_at = datetime('now')
+     WHERE id = ?`
+  ).run(
+    meta.tmdbId || null,
+    meta.imdbId || null,
+    meta.overview || null,
+    meta.year || null,
+    meta.rating != null ? meta.rating : null,
+    meta.posterUrl || null,
+    meta.extra ? JSON.stringify(meta.extra) : null,
+    item.id
+  );
+  return { item: rowToItem(db.prepare('SELECT * FROM media_items WHERE id = ?').get(item.id)) };
+}
+
+// Point a stored item at a new cover image (used after a cover upload).
+function setItemImage(serverId, folderName, itemTitle, imageUrl) {
+  const db = getDb();
+  const folderRow = getFolderRow(serverId, folderName);
+  if (!folderRow) return { error: 'Folder not found' };
+  const item = db.prepare('SELECT * FROM media_items WHERE folder_id = ? AND title = ?').get(folderRow.id, itemTitle);
+  if (!item) return { error: 'Item not found' };
+  db.prepare('UPDATE media_items SET image_url = ? WHERE id = ?').run(imageUrl, item.id);
+  return { item: rowToItem(db.prepare('SELECT * FROM media_items WHERE id = ?').get(item.id)) };
+}
+
+module.exports = {
+  getServersWithMedia,
+  getFolderMedia,
+  getFolderRow,
+  saveSettings,
+  setItemMetadata,
+  setItemImage,
+  rowToItem,
+};

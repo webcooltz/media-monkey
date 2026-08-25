@@ -1,87 +1,22 @@
 const fs = require('fs');
 const path = require('path');
+const catalog = require('../services/catalog');
+const scanner = require('../services/scanner');
+const metadata = require('../services/metadata');
+const subtitlesService = require('../services/subtitles');
+const cleanvid = require('../services/cleanvid');
+const { getDb } = require('../db');
+const { folderKind } = require('../constants');
 
-const settingsPath = path.join(__dirname, '../data/settings.json');
-const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
-const playableExtensions = ['.mp4', '.m4v', '.webm', '.mov', '.mkv', '.avi', '.mp3', '.m4a', '.aac', '.wav', '.flac'];
-const subtitleExtensions = ['.vtt', '.srt'];
-
-function toSlug(value) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
-}
-
-function buildMediaUrl(folderName, pathSegments) {
-  return `/media/${[folderName, ...pathSegments].map(segment => encodeURIComponent(segment)).join('/')}`;
-}
-
-function buildSubtitleUrl(serverId, folderName, pathSegments) {
-  const searchParams = new URLSearchParams({
-    serverId,
-    folderName,
-    path: pathSegments.join('/'),
-  });
-  return `/api/media/subtitles?${searchParams.toString()}`;
-}
-
-function buildImageUrl(folderName, pathSegments) {
-  return buildMediaUrl(folderName, pathSegments);
-}
-
-function findImageFile(dir, folderName, pathSegments = [path.basename(dir)]) {
-  try {
-    const files = fs.readdirSync(dir);
-    const imageFile = files.find(file => imageExtensions.includes(path.extname(file).toLowerCase()));
-    return imageFile ? buildImageUrl(folderName, [...pathSegments, imageFile]) : null;
-  } catch {
-    return null;
-  }
-}
-
-function findPlayableFile(dir, folderName, pathSegments = [path.basename(dir)]) {
-  try {
-    const files = fs.readdirSync(dir);
-    const playableFile = files.find(file => playableExtensions.includes(path.extname(file).toLowerCase()));
-    return playableFile ? buildMediaUrl(folderName, [...pathSegments, playableFile]) : null;
-  } catch {
-    return null;
-  }
-}
-
-function findPlayableFileName(dir) {
-  try {
-    const files = fs.readdirSync(dir);
-    return files.find(file => playableExtensions.includes(path.extname(file).toLowerCase())) || null;
-  } catch {
-    return null;
-  }
-}
-
-function findSubtitleFiles(dir, serverId, folderName, pathSegments = [], mediaFileName = null, mediaTitle = null) {
-  try {
-    const files = fs.readdirSync(dir);
-    const mediaSlug = mediaFileName ? toSlug(path.parse(mediaFileName).name) : null;
-    const titleSlug = mediaTitle ? toSlug(mediaTitle) : null;
-
-    return files
-      .filter(file => subtitleExtensions.includes(path.extname(file).toLowerCase()))
-      .filter(file => {
-        const subtitleSlug = toSlug(path.parse(file).name);
-        if (mediaSlug && (subtitleSlug === mediaSlug || subtitleSlug.startsWith(mediaSlug) || mediaSlug.startsWith(subtitleSlug))) {
-          return true;
-        }
-        if (titleSlug && (subtitleSlug === titleSlug || subtitleSlug.startsWith(titleSlug) || titleSlug.startsWith(subtitleSlug))) {
-          return true;
-        }
-        return !mediaSlug && !titleSlug;
-      })
-      .map(file => ({
-        label: path.parse(file).name,
-        fileName: file,
-        url: buildSubtitleUrl(serverId, folderName, [...pathSegments, file]),
-      }));
-  } catch {
-    return [];
-  }
+// Resolve an item's stored /media/... URL back to an absolute on-disk path.
+function resolveMediaPath(folderRow, mediaUrl) {
+  if (!mediaUrl) return null;
+  const segments = mediaUrl.replace(/^\/media\//, '').split('/').map(decodeURIComponent);
+  const [, ...fileSegments] = segments; // drop folderName segment
+  const rootPath = path.resolve(folderRow.media_location);
+  const targetPath = path.resolve(rootPath, ...fileSegments);
+  if (!targetPath.startsWith(rootPath + path.sep) && targetPath !== rootPath) return null;
+  return targetPath;
 }
 
 function toWebVtt(content) {
@@ -90,234 +25,163 @@ function toWebVtt(content) {
   return `WEBVTT\n\n${converted}`;
 }
 
-function isMovieCollection(name) {
-  // A folder with no year (e.g. "Back to the Future") is a collection;
-  // a folder with a year (e.g. "Bullet Train (2022)") is a single movie.
-  return !/\b(19|20)\d{2}\b/.test(name);
-}
-
-function buildFolderMedia(serverId, folder) {
-  const folderPath = folder.mediaLocation;
-
-  if (folder.name.toLowerCase().includes('tv') || folder.name.toLowerCase().includes('movie')) {
-    return getFoldersInDir(folderPath).map(name => {
-      const subfolderPath = path.join(folderPath, name);
-      const isMovieType = folder.name.toLowerCase().includes('movie');
-      const isTvType = folder.name.toLowerCase().includes('tv');
-      const collection = isMovieType && isMovieCollection(name);
-      const playableFileName = isMovieType && !collection ? findPlayableFileName(subfolderPath) : null;
-      return {
-        title: name,
-        type: isTvType ? 'show' : collection ? 'collection' : 'movie',
-        imageUrl: findImageFile(subfolderPath, folder.name, [name]),
-        mediaUrl: isMovieType && !collection ? findPlayableFile(subfolderPath, folder.name, [name]) : null,
-        subtitles: isMovieType && !collection ? findSubtitleFiles(subfolderPath, serverId, folder.name, [name], playableFileName, name) : [],
-      };
-    });
-  }
-
-  if (folder.name.toLowerCase().includes('music') || folder.name.toLowerCase().includes('audiobook')) {
-    return getFilesInDir(folderPath).map(name => {
-      const ext = path.extname(name).toLowerCase();
-      return {
-        title: name.replace(/\.[^/.]+$/, ''),
-        type: folder.name.toLowerCase().includes('music') ? 'music' : 'audiobook',
-        imageUrl: imageExtensions.includes(ext) ? buildImageUrl(folder.name, [name]) : null,
-        mediaUrl: playableExtensions.includes(ext) ? buildMediaUrl(folder.name, [name]) : null,
-        subtitles: [],
-      };
-    });
-  }
-
-  return [];
-}
-
-function getSettings() {
-  return JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-}
-
-function findServerFolder(settings, serverId, folderName) {
-  const server = settings.servers.find(s => s.id === serverId);
-  if (!server) {
-    return { error: 'Server not found' };
-  }
-
-  const folder = server.folders.find(f => f.name === folderName);
-  if (!folder) {
-    return { error: 'Folder not found' };
-  }
-
-  return { server, folder };
-}
-
-function buildShowSeasons(folder, showTitle) {
-  const showPath = path.join(folder.mediaLocation, showTitle);
-  return getFoldersInDir(showPath).map(name => {
-    const seasonPath = path.join(showPath, name);
-    return {
-      title: name,
-      type: 'season',
-      imageUrl: findImageFile(seasonPath, folder.name, [showTitle, name]),
-    };
-  });
-}
-
-function buildCollectionMovies(serverId, folder, collectionTitle) {
-  const collectionPath = path.join(folder.mediaLocation, collectionTitle);
-  return getFoldersInDir(collectionPath).map(name => {
-    const moviePath = path.join(collectionPath, name);
-    const playableFileName = findPlayableFileName(moviePath);
-    return {
-      title: name,
-      type: 'movie',
-      imageUrl: findImageFile(moviePath, folder.name, [collectionTitle, name]),
-      mediaUrl: findPlayableFile(moviePath, folder.name, [collectionTitle, name]),
-      subtitles: findSubtitleFiles(moviePath, serverId, folder.name, [collectionTitle, name], playableFileName, name),
-    };
-  });
-}
-
-function buildSeasonEpisodes(serverId, folder, showTitle, seasonName) {
-  const seasonPath = path.join(folder.mediaLocation, showTitle, seasonName);
-  return getFilesInDir(seasonPath)
-    .filter(name => playableExtensions.includes(path.extname(name).toLowerCase()))
-    .map(name => ({
-      title: name.replace(/\.[^/.]+$/, ''),
-      type: 'episode',
-      imageUrl: null,
-      mediaUrl: buildMediaUrl(folder.name, [showTitle, seasonName, name]),
-      subtitles: findSubtitleFiles(seasonPath, serverId, folder.name, [showTitle, seasonName], name, name.replace(/\.[^/.]+$/, '')),
-    }));
-}
-
-function getFoldersInDir(dirPath) {
-  try {
-    return fs.readdirSync(dirPath, { withFileTypes: true })
-      .filter(dirent => dirent.isDirectory())
-      .map(dirent => dirent.name);
-  } catch (e) {
-    return [];
-  }
-}
-
-function getFilesInDir(dirPath) {
-  try {
-    return fs.readdirSync(dirPath, { withFileTypes: true })
-      .filter(dirent => dirent.isFile())
-      .map(dirent => dirent.name);
-  } catch (e) {
-    return [];
-  }
-}
-
 exports.getAllMedia = (req, res) => {
-  let settings;
   try {
-    settings = getSettings();
+    res.json({ servers: catalog.getServersWithMedia() });
   } catch (e) {
-    return res.status(500).json({ error: 'Could not read settings' });
+    res.status(500).json({ error: 'Could not read catalog' });
   }
-  const updatedServers = settings.servers.map(server => ({
-    ...server,
-    folders: server.folders.map(folder => {
-      const media = buildFolderMedia(server.id, folder);
-      return {
-        ...folder,
-        media,
-        children: media.map(m => m.title),
-      };
-    })
-  }));
-  try {
-    fs.writeFileSync(settingsPath, JSON.stringify({ servers: updatedServers }, null, 2), 'utf-8');
-  } catch (e) {}
-  res.json({ servers: updatedServers });
 };
 
 exports.updateMediaSettings = (req, res) => {
   const newSettings = req.body;
-  if (!newSettings || typeof newSettings !== 'object') {
+  if (!newSettings || !Array.isArray(newSettings.servers)) {
     return res.status(400).json({ error: 'Invalid settings data' });
   }
   try {
-    fs.writeFileSync(settingsPath, JSON.stringify(newSettings, null, 2), 'utf-8');
+    catalog.saveSettings(newSettings.servers);
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: 'Failed to write settings' });
+    res.status(500).json({ error: 'Failed to save settings' });
   }
 };
 
 exports.getFolderMedia = (req, res) => {
-  let settings;
-  try {
-    settings = getSettings();
-  } catch (e) {
-    return res.status(500).json({ error: 'Could not read settings' });
-  }
   const { serverId, folderName } = req.params;
-  const { folder, error } = findServerFolder(settings, serverId, folderName);
-  if (error) return res.status(404).json({ error });
-  const media = buildFolderMedia(serverId, folder);
-  folder.media = media;
-  folder.children = media.map(m => m.title);
+  const refresh = req.query.refresh === 'true' || req.query.refresh === '1';
   try {
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
-  } catch (e) {}
-  res.json({ media });
+    const { media, error } = catalog.getFolderMedia(serverId, folderName, { refresh });
+    if (error) return res.status(404).json({ error });
+    res.json({ media });
+  } catch (e) {
+    res.status(500).json({ error: 'Could not read folder media' });
+  }
 };
 
 exports.getShowSeasons = (req, res) => {
-  let settings;
-  try {
-    settings = getSettings();
-  } catch (e) {
-    return res.status(500).json({ error: 'Could not read settings' });
-  }
-
   const { serverId, folderName, itemTitle } = req.params;
-  const { folder, error } = findServerFolder(settings, serverId, folderName);
-  if (error) return res.status(404).json({ error });
+  const folderRow = catalog.getFolderRow(serverId, folderName);
+  if (!folderRow) return res.status(404).json({ error: 'Folder not found' });
 
-  const isMovieFolder = folder.name.toLowerCase().includes('movie');
-  const media = isMovieFolder && isMovieCollection(itemTitle)
-    ? buildCollectionMovies(serverId, folder, itemTitle)
-    : buildShowSeasons(folder, itemTitle);
+  const folder = { name: folderRow.name, mediaLocation: folderRow.media_location };
+  const isMovieFolder = folderKind(folder.name) === 'movies';
+  const media = isMovieFolder && scanner.isMovieCollection(itemTitle)
+    ? scanner.scanCollectionMovies(serverId, folder, itemTitle)
+    : scanner.scanShowSeasons(folder, itemTitle);
   res.json({ media });
 };
 
 exports.getSeasonEpisodes = (req, res) => {
-  let settings;
+  const { serverId, folderName, itemTitle, seasonName } = req.params;
+  const folderRow = catalog.getFolderRow(serverId, folderName);
+  if (!folderRow) return res.status(404).json({ error: 'Folder not found' });
+
+  const folder = { name: folderRow.name, mediaLocation: folderRow.media_location };
+  res.json({ media: scanner.scanSeasonEpisodes(serverId, folder, itemTitle, seasonName) });
+};
+
+exports.fetchMetadata = async (req, res) => {
+  const { serverId, folderName, itemTitle } = req.params;
+  const folderRow = catalog.getFolderRow(serverId, folderName);
+  if (!folderRow) return res.status(404).json({ error: 'Folder not found' });
+
+  const item = getDb().prepare('SELECT * FROM media_items WHERE folder_id = ? AND title = ?').get(folderRow.id, itemTitle);
+  const isShow = item ? item.type === 'show' : folderKind(folderName) === 'tv';
+
   try {
-    settings = getSettings();
+    const meta = await metadata.lookup(itemTitle, { isShow });
+    if (!meta) return res.json({ found: false });
+    if (meta.stub) {
+      return res.json({ stub: true, message: 'No metadata provider configured. Add TMDB_API_KEY (or OMDB_API_KEY) to server/.env.' });
+    }
+    const result = catalog.setItemMetadata(serverId, folderName, itemTitle, meta);
+    if (result.error) return res.status(404).json(result);
+    res.json({ found: true, provider: meta.provider, item: result.item });
   } catch (e) {
-    return res.status(500).json({ error: 'Could not read settings' });
+    res.status(502).json({ error: 'Metadata lookup failed: ' + e.message });
+  }
+};
+
+exports.findSubtitles = async (req, res) => {
+  const { serverId, folderName, itemTitle } = req.params;
+  const folderRow = catalog.getFolderRow(serverId, folderName);
+  if (!folderRow) return res.status(404).json({ error: 'Folder not found' });
+  const item = getDb().prepare('SELECT * FROM media_items WHERE folder_id = ? AND title = ?').get(folderRow.id, itemTitle);
+  const isShow = item ? item.type === 'show' : folderKind(folderName) === 'tv';
+  try {
+    const result = await subtitlesService.find(itemTitle, { isShow });
+    if (result.stub) {
+      return res.json({ stub: true, message: 'No subtitle provider configured. Add OPENSUBTITLES_API_KEY to server/.env.' });
+    }
+    res.json(result);
+  } catch (e) {
+    res.status(502).json({ error: 'Subtitle search failed: ' + e.message });
+  }
+};
+
+exports.runCleanvid = async (req, res) => {
+  const { serverId, folderName, itemTitle } = req.params;
+  const folderRow = catalog.getFolderRow(serverId, folderName);
+  if (!folderRow) return res.status(404).json({ error: 'Folder not found' });
+  const item = getDb().prepare('SELECT * FROM media_items WHERE folder_id = ? AND title = ?').get(folderRow.id, itemTitle);
+  if (!item || !item.media_url) return res.status(400).json({ error: 'No playable file for this item' });
+
+  const inputPath = resolveMediaPath(folderRow, item.media_url);
+  try {
+    const result = await cleanvid.clean(inputPath);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: 'cleanvid failed: ' + e.message });
+  }
+};
+
+exports.uploadCover = (req, res) => {
+  const { serverId, folderName, itemTitle } = req.params;
+  const { image } = req.body || {};
+  if (!image || typeof image !== 'string') {
+    return res.status(400).json({ error: 'Missing image data' });
   }
 
-  const { serverId, folderName, itemTitle, seasonName } = req.params;
-  const { folder, error } = findServerFolder(settings, serverId, folderName);
-  if (error) return res.status(404).json({ error });
+  const folderRow = catalog.getFolderRow(serverId, folderName);
+  if (!folderRow) return res.status(404).json({ error: 'Folder not found' });
 
-  const media = buildSeasonEpisodes(serverId, folder, itemTitle, seasonName);
-  res.json({ media });
+  const rootPath = path.resolve(folderRow.media_location);
+  const itemDir = path.resolve(rootPath, itemTitle);
+  if (!itemDir.startsWith(rootPath + path.sep) && itemDir !== rootPath) {
+    return res.status(403).json({ error: 'Invalid item path' });
+  }
+  if (!fs.existsSync(itemDir) || !fs.statSync(itemDir).isDirectory()) {
+    return res.status(400).json({ error: 'This item has no folder to store a cover in' });
+  }
+
+  const match = image.match(/^data:image\/(png|jpe?g|webp);base64,(.+)$/);
+  if (!match) return res.status(400).json({ error: 'Unsupported image format' });
+  const buffer = Buffer.from(match[2], 'base64');
+
+  const outPath = path.join(itemDir, 'poster.jpg');
+  try {
+    fs.writeFileSync(outPath, buffer);
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to write cover: ' + e.message });
+  }
+
+  // Cache-bust so the browser reloads the new image immediately.
+  const url = `/media/${[folderName, itemTitle, 'poster.jpg'].map(encodeURIComponent).join('/')}?v=${Date.now()}`;
+  const result = catalog.setItemImage(serverId, folderName, itemTitle, url);
+  if (result.error) return res.status(404).json(result);
+  res.json({ success: true, imageUrl: url, item: result.item });
 };
 
 exports.getSubtitleFile = (req, res) => {
-  let settings;
-  try {
-    settings = getSettings();
-  } catch (e) {
-    return res.status(500).json({ error: 'Could not read settings' });
-  }
-
   const { serverId, folderName, path: relativePath } = req.query;
   if (!serverId || !folderName || !relativePath) {
     return res.status(400).json({ error: 'Missing subtitle path parameters' });
   }
 
-  const { folder, error } = findServerFolder(settings, serverId, folderName);
-  if (error) return res.status(404).json({ error });
+  const folderRow = catalog.getFolderRow(serverId, folderName);
+  if (!folderRow) return res.status(404).json({ error: 'Folder not found' });
 
-  const rootPath = path.resolve(folder.mediaLocation);
+  const rootPath = path.resolve(folderRow.media_location);
   const targetPath = path.resolve(rootPath, ...String(relativePath).split('/'));
   if (!targetPath.startsWith(rootPath + path.sep) && targetPath !== rootPath) {
     return res.status(403).json({ error: 'Invalid subtitle path' });
@@ -335,4 +199,55 @@ exports.getSubtitleFile = (req, res) => {
   } catch {
     res.status(500).json({ error: 'Failed to read subtitle file' });
   }
+};
+
+function listWindowsDrives() {
+  const drives = [];
+  for (let code = 65; code <= 90; code++) {
+    const letter = String.fromCharCode(code);
+    const root = `${letter}:\\`;
+    try {
+      if (fs.existsSync(root)) drives.push({ name: `${letter}:`, path: root });
+    } catch {}
+  }
+  return drives;
+}
+
+exports.browseDirectory = (req, res) => {
+  const requestedPath = req.query.path ? String(req.query.path) : '';
+
+  if (!requestedPath && process.platform === 'win32') {
+    return res.json({ path: '', parent: null, directories: listWindowsDrives() });
+  }
+
+  const targetPath = path.resolve(requestedPath || '/');
+
+  let stat;
+  try {
+    stat = fs.statSync(targetPath);
+  } catch {
+    return res.status(404).json({ error: 'Path not found' });
+  }
+  if (!stat.isDirectory()) {
+    return res.status(400).json({ error: 'Path is not a directory' });
+  }
+
+  let directories;
+  try {
+    directories = fs.readdirSync(targetPath, { withFileTypes: true })
+      .filter(dirent => dirent.isDirectory())
+      .map(dirent => ({ name: dirent.name, path: path.join(targetPath, dirent.name) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch {
+    return res.status(403).json({ error: 'Cannot read directory' });
+  }
+
+  const parent = path.dirname(targetPath);
+  const atRoot = parent === targetPath;
+
+  res.json({
+    path: targetPath,
+    parent: atRoot ? (process.platform === 'win32' ? '' : null) : parent,
+    directories,
+  });
 };

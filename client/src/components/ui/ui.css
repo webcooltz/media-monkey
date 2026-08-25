@@ -1,0 +1,126 @@
+/* Reusable UI primitives — all theme-aware via CSS vars. */
+
+/* Buttons */
+.mm-btn {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text-h);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
+}
+.mm-btn:hover:not(:disabled) { background: var(--accent-bg); color: var(--accent); }
+.mm-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.mm-btn--primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.mm-btn--primary:hover:not(:disabled) { background: var(--accent); color: #fff; filter: brightness(1.1); }
+.mm-btn--danger { background: #e05555; border-color: #e05555; color: #fff; }
+.mm-btn--danger:hover:not(:disabled) { background: #c94545; color: #fff; }
+.mm-btn--ghost { background: none; border-color: transparent; color: var(--accent); }
+.mm-btn--ghost:hover:not(:disabled) { background: var(--accent-bg); }
+
+/* Panel (bordered content box) */
+.mm-panel {
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--code-bg);
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+}
+.mm-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.mm-panel__header h3 { margin: 0; font-size: 1rem; color: var(--text-h); }
+.mm-muted { color: var(--text); margin: 0; }
+.mm-status { margin: 0.5rem 0 0; font-size: 0.82rem; color: var(--accent); }
+
+/* Poster image + placeholder */
+.mm-poster {
+  object-fit: cover;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  display: block;
+  background: var(--code-bg);
+}
+.mm-poster--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+/* Modal */
+.mm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+.mm-modal {
+  background: var(--code-bg);
+  color: var(--text-h);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+  overflow: hidden;
+}
+.mm-modal__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+}
+.mm-modal__header h3 { margin: 0; flex: 1; font-size: 1rem; }
+.mm-modal__close {
+  background: none; border: none; color: var(--text);
+  font-size: 1.3rem; line-height: 1; cursor: pointer;
+}
+.mm-modal__body { padding: 1rem 1.1rem; overflow-y: auto; }
+.mm-modal__footer {
+  display: flex; gap: 0.6rem; justify-content: flex-end;
+  padding: 0.8rem 1.1rem; border-top: 1px solid var(--border);
+}
+
+/* Folder picker (uses Modal) */
+.folder-picker__path {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--accent);
+  word-break: break-all;
+  margin-bottom: 0.5rem;
+}
+.folder-picker__list {
+  max-height: 45vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+.folder-picker__row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  background: none;
+  border: none;
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.folder-picker__row:hover { background: var(--accent-bg); color: var(--accent); }

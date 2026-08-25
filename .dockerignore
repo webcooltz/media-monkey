@@ -1,10 +1,10 @@
 node_modules
+**/node_modules
 client/dist
 client/dist-ssr
-*.local
-*.log
-npm-debug.log*
-.DS_Store
+**/*.log
+.git
 .env
+server/.env
 server/data/media.db
 server/data/media.db-*

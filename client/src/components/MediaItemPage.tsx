@@ -1,172 +1,187 @@
-import React, { useEffect, useState } from 'react';
-// ...existing code...
-import SeasonPage from './SeasonPage';
+import React, { useState } from 'react';
+import CoverEditor from './CoverEditor';
+import Poster from './ui/Poster';
+import Panel from './ui/Panel';
+import Button from './ui/Button';
+import { api, type SubtitleSearchResult } from '../api';
+import { useAsync } from '../hooks/useAsync';
+import type { MediaItem, SubtitleTrack } from '../types';
 
 interface MediaItemPageProps {
-  apiBase: string;
   serverId: string;
   folderName: string;
   itemTitle: string;
   onBack: () => void;
+  onSelectSeason: (seasonName: string) => void;
   onPlay: (title: string, mediaUrl: string, posterUrl?: string, subtitles?: SubtitleTrack[]) => void;
 }
 
-interface SubtitleTrack {
-  label: string;
-  fileName: string;
-  url: string;
+interface LoadedItem {
+  item: MediaItem | null;
+  seasons: MediaItem[];
 }
 
-interface MediaItem {
-  title: string;
-  type: string;
-  imageUrl?: string;
-  mediaUrl?: string | null;
-  subtitles?: SubtitleTrack[];
-}
+const MediaItemPage: React.FC<MediaItemPageProps> = ({ serverId, folderName, itemTitle, onBack, onSelectSeason, onPlay }) => {
+  const invalid = !serverId || !folderName || !itemTitle;
 
-interface Season {
-  title: string;
-  imageUrl?: string;
-  mediaUrl?: string | null;
-  subtitles?: SubtitleTrack[];
-}
-
-const MediaItemPage: React.FC<MediaItemPageProps> = ({ apiBase, serverId, folderName, itemTitle, onBack, onPlay }) => {
-  const [mediaItem, setMediaItem] = useState<MediaItem | null | undefined>(undefined);
-  const [seasons, setSeasons] = useState<Season[] | undefined>(undefined);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
-  const isInvalid = !serverId || !folderName || !itemTitle;
-
-  useEffect(() => {
-    if (isInvalid) {
-      return;
+  const { data, loading, error, setData } = useAsync<LoadedItem>(async () => {
+    if (invalid) return { item: null, seasons: [] };
+    const { media } = await api.getFolderMedia(serverId, folderName);
+    const item = media.find(m => m.title === itemTitle) || null;
+    let seasons: MediaItem[] = [];
+    if (item && (item.type === 'show' || item.type === 'collection')) {
+      seasons = (await api.getSeasons(serverId, folderName, itemTitle)).media;
     }
+    return { item, seasons };
+  }, [serverId, folderName, itemTitle]);
 
-    let cancelled = false;
+  const [editingCover, setEditingCover] = useState(false);
+  const [metaStatus, setMetaStatus] = useState<string | null>(null);
+  const [fetchingMeta, setFetchingMeta] = useState(false);
+  const [subStatus, setSubStatus] = useState<string | null>(null);
+  const [subResults, setSubResults] = useState<SubtitleSearchResult[] | null>(null);
+  const [cvStatus, setCvStatus] = useState<string | null>(null);
+  const [busy, setBusy] = useState<'subs' | 'cv' | null>(null);
 
-    const loadMedia = async () => {
-      try {
-        const folderResponse = await fetch(`${apiBase}/media/${encodeURIComponent(serverId)}/${encodeURIComponent(folderName)}`);
-        const folderData = await folderResponse.json();
-        if (cancelled) return;
+  const item = data?.item ?? null;
+  const seasons = data?.seasons ?? [];
+  const updateItem = (patch: Partial<MediaItem>) => item && setData({ item: { ...item, ...patch }, seasons });
 
-        let fetchedItem: MediaItem | null = null;
-        if (Array.isArray(folderData.media)) {
-          const found = folderData.media.find((m: MediaItem) => m.title === itemTitle);
-          fetchedItem = found || null;
-          setMediaItem(fetchedItem);
-        } else {
-          setMediaItem(null);
-        }
+  const fetchMetadata = async () => {
+    setFetchingMeta(true); setMetaStatus(null);
+    try {
+      const res = await api.fetchMetadata(serverId, folderName, itemTitle);
+      if (res.stub) setMetaStatus(res.message || 'No metadata provider configured.');
+      else if (res.found === false) setMetaStatus('No match found.');
+      else if (res.item) { setData({ item: res.item, seasons }); setMetaStatus(`Updated from ${res.provider}.`); }
+      else setMetaStatus(res.error || 'Lookup failed.');
+    } catch (e) { setMetaStatus(e instanceof Error ? e.message : 'Lookup failed.'); }
+    finally { setFetchingMeta(false); }
+  };
 
-        if (fetchedItem?.type === 'show' || fetchedItem?.type === 'collection') {
-          const showResponse = await fetch(`${apiBase}/media/${encodeURIComponent(serverId)}/${encodeURIComponent(folderName)}/${encodeURIComponent(itemTitle)}`);
-          const showData = await showResponse.json();
-          if (cancelled) return;
-          setSeasons(Array.isArray(showData.media) ? showData.media : []);
-        } else {
-          setSeasons([]);
-        }
-        setError(null);
-      } catch (err) {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Failed to load media item.');
-        setMediaItem(null);
-        setSeasons([]);
-      }
-    };
+  const findSubtitles = async () => {
+    setBusy('subs'); setSubStatus(null); setSubResults(null);
+    try {
+      const res = await api.findSubtitles(serverId, folderName, itemTitle);
+      if (res.stub) setSubStatus(res.message || 'No subtitle provider configured.');
+      else if (res.results) { setSubResults(res.results); setSubStatus(res.results.length ? `Found ${res.results.length} result(s).` : 'No results.'); }
+      else setSubStatus(res.error || 'Search failed.');
+    } catch (e) { setSubStatus(e instanceof Error ? e.message : 'Search failed.'); }
+    finally { setBusy(null); }
+  };
 
-    loadMedia();
+  const runCleanvid = async () => {
+    setBusy('cv'); setCvStatus(null);
+    try {
+      const res = await api.runCleanvid(serverId, folderName, itemTitle);
+      if (res.stub) setCvStatus(res.message || 'cleanvid disabled.');
+      else if (res.success) setCvStatus(`Done → ${res.outputPath}`);
+      else setCvStatus(res.error || 'cleanvid failed.');
+    } catch (e) { setCvStatus(e instanceof Error ? e.message : 'cleanvid failed.'); }
+    finally { setBusy(null); }
+  };
 
-    return () => {
-      cancelled = true;
-    };
-  }, [serverId, folderName, itemTitle, apiBase, isInvalid]);
-
-  if (isInvalid) return <div style={{ color: 'red', padding: 24 }}>Invalid media item: missing server, folder, or item title.</div>;
-  if (mediaItem === undefined || seasons === undefined) return <div>Loading...</div>;
+  if (invalid) return <div style={{ color: 'red', padding: 24 }}>Invalid media item: missing server, folder, or item title.</div>;
+  if (loading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
-  if (!mediaItem) return <div>Media item not found.</div>;
+  if (!item) return <div>Media item not found.</div>;
 
-  if (selectedSeason) {
-    return (
-      <SeasonPage
-        key={`${serverId}:${folderName}:${itemTitle}:${selectedSeason}`}
-        serverId={serverId}
-        folderName={folderName}
-        showTitle={itemTitle}
-        seasonName={selectedSeason}
-        apiBase={apiBase}
-        onBack={() => setSelectedSeason(null)}
-        onPlay={onPlay}
-      />
-    );
-  }
+  const canEditCover = item.type !== 'music' && item.type !== 'audiobook';
 
   return (
-    <div className="media-item-page" style={{ maxWidth: 600, margin: '0 auto', padding: 24 }}>
-      <button
-        onClick={onBack}
-        style={{ marginBottom: 16 }}
-      >&larr; Back</button>
-      {mediaItem.imageUrl && (
-        <img src={mediaItem.imageUrl} alt={mediaItem.title} style={{ width: 220, height: 330, objectFit: 'cover', borderRadius: 10, border: '1px solid #ccc', marginBottom: 16 }} />
-      )}
-      <h1>{mediaItem.title}</h1>
-      {mediaItem.mediaUrl && (
-        <button onClick={() => onPlay(mediaItem.title, mediaItem.mediaUrl as string, mediaItem.imageUrl, mediaItem.subtitles)} style={{ marginBottom: 24 }}>
-          Play
-        </button>
-      )}
-      {mediaItem.type !== 'collection' && (
-      <div style={{ marginBottom: 24, padding: 16, border: '1px solid #ddd', borderRadius: 10, background: '#f8f8f8' }}>
-        <h3 style={{ marginTop: 0 }}>Available Subtitles</h3>
-        {mediaItem.subtitles && mediaItem.subtitles.length > 0 ? (
-          <ul>
-            {mediaItem.subtitles.map(track => (
-              <li key={track.url}>{track.fileName}</li>
-            ))}
-          </ul>
-        ) : (
-          <p style={{ margin: 0, color: '#666' }}>No subtitle files were found for this item.</p>
-        )}
+    <div className="media-item-page">
+      <button className="back-btn" onClick={onBack}>&larr; Back</button>
+
+      <div style={{ marginBottom: 16 }}>
+        <Poster src={item.imageUrl} alt={item.title} width={220} height={330} />
+        {canEditCover && <Button onClick={() => setEditingCover(true)} style={{ marginTop: 8 }}>🖼️ Change cover</Button>}
       </div>
+
+      <h1>{item.title}</h1>
+      {item.mediaUrl && (
+        <Button variant="primary" style={{ marginBottom: 24, marginRight: 12 }}
+          onClick={() => onPlay(item.title, item.mediaUrl as string, item.imageUrl, item.subtitles)}>
+          Play
+        </Button>
       )}
-      {/* Add more details here if available */}
-      {seasons.length > 0 && mediaItem.type === 'collection' && (
+
+      {editingCover && (
+        <CoverEditor
+          serverId={serverId}
+          folderName={folderName}
+          itemTitle={itemTitle}
+          onClose={() => setEditingCover(false)}
+          onSaved={(imageUrl) => { updateItem({ imageUrl }); setEditingCover(false); }}
+        />
+      )}
+
+      <Panel
+        title="Info"
+        actions={<Button onClick={fetchMetadata} disabled={fetchingMeta}>{fetchingMeta ? 'Fetching…' : '🔎 Fetch info (TMDB/IMDB)'}</Button>}
+      >
+        {item.metadata ? (
+          <div style={{ fontSize: 14 }}>
+            <div style={{ marginBottom: 6 }}>
+              {item.metadata.year && <span style={{ marginRight: 16 }}><strong>Year:</strong> {item.metadata.year}</span>}
+              {item.metadata.rating != null && <span style={{ marginRight: 16 }}><strong>Rating:</strong> ⭐ {item.metadata.rating}</span>}
+              {item.metadata.imdbId && <a href={`https://www.imdb.com/title/${item.metadata.imdbId}`} target="_blank" rel="noreferrer">IMDB ↗</a>}
+            </div>
+            {item.metadata.overview && <p style={{ margin: 0 }}>{item.metadata.overview}</p>}
+          </div>
+        ) : (
+          <p className="mm-muted">No metadata yet. Click fetch to look it up.</p>
+        )}
+        {metaStatus && <p className="mm-status">{metaStatus}</p>}
+      </Panel>
+
+      {item.type !== 'collection' && (
+        <Panel
+          title="Subtitles"
+          actions={
+            <>
+              <Button onClick={findSubtitles} disabled={busy === 'subs'}>{busy === 'subs' ? 'Searching…' : '🔍 Find online'}</Button>
+              {item.mediaUrl && <Button onClick={runCleanvid} disabled={busy === 'cv'} title="Mute/remove profanity (cleanvid)">{busy === 'cv' ? 'Cleaning…' : '🧼 cleanvid'}</Button>}
+            </>
+          }
+        >
+          {item.subtitles && item.subtitles.length > 0 ? (
+            <ul>{item.subtitles.map(t => <li key={t.url}>{t.fileName}</li>)}</ul>
+          ) : (
+            <p className="mm-muted">No local subtitle files found for this item.</p>
+          )}
+          {subStatus && <p className="mm-status">{subStatus}</p>}
+          {subResults && subResults.length > 0 && (
+            <ul style={{ marginTop: 8, fontSize: 13 }}>
+              {subResults.map(r => <li key={r.id}>{r.language} — {r.release} {r.downloads != null ? `(${r.downloads} dl)` : ''}</li>)}
+            </ul>
+          )}
+          {cvStatus && <p className="mm-status" style={{ wordBreak: 'break-all' }}>{cvStatus}</p>}
+        </Panel>
+      )}
+
+      {seasons.length > 0 && item.type === 'collection' && (
         <div style={{ marginTop: 32 }}>
           <h2>Movies</h2>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24 }}>
+          <div className="media-flex-row">
             {seasons.map(movie => (
               <div key={movie.title} style={{ textAlign: 'center' }}>
-                {movie.imageUrl ? (
-                  <img src={movie.imageUrl} alt={movie.title} style={{ width: 120, height: 180, objectFit: 'cover', borderRadius: 8, border: '1px solid #ccc', marginBottom: 8 }} />
-                ) : (
-                  <div style={{ width: 120, height: 180, background: '#eee', borderRadius: 8, border: '1px solid #ccc', margin: '0 auto 8px auto', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa' }}>No Image</div>
-                )}
-                <div style={{ fontWeight: 500, marginBottom: 6 }}>{movie.title}</div>
-                {movie.mediaUrl && (
-                  <button onClick={() => onPlay(movie.title, movie.mediaUrl as string, movie.imageUrl, movie.subtitles)}>Play</button>
-                )}
+                <Poster src={movie.imageUrl} alt={movie.title} width={120} height={180} />
+                <div style={{ fontWeight: 500, margin: '6px 0' }}>{movie.title}</div>
+                {movie.mediaUrl && <Button onClick={() => onPlay(movie.title, movie.mediaUrl as string, movie.imageUrl, movie.subtitles)}>Play</Button>}
               </div>
             ))}
           </div>
         </div>
       )}
-      {seasons.length > 0 && mediaItem.type === 'show' && (
+
+      {seasons.length > 0 && item.type === 'show' && (
         <div style={{ marginTop: 32 }}>
           <h2>Seasons</h2>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24 }}>
+          <div className="media-flex-row">
             {seasons.map(season => (
-              <div key={season.title} style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => setSelectedSeason(season.title)}>
-                {season.imageUrl ? (
-                  <img src={season.imageUrl} alt={season.title} style={{ width: 120, height: 180, objectFit: 'cover', borderRadius: 8, border: '1px solid #ccc', marginBottom: 8 }} />
-                ) : (
-                  <div style={{ width: 120, height: 180, background: '#eee', borderRadius: 8, border: '1px solid #ccc', margin: '0 auto 8px auto', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa' }}>No Image</div>
-                )}
-                <div style={{ fontWeight: 500 }}>{season.title}</div>
+              <div key={season.title} style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => onSelectSeason(season.title)}>
+                <Poster src={season.imageUrl} alt={season.title} width={120} height={180} />
+                <div style={{ fontWeight: 500, marginTop: 6 }}>{season.title}</div>
               </div>
             ))}
           </div>
