@@ -6,6 +6,7 @@ import Button from './ui/Button';
 import { api, type SubtitleSearchResult, type MetadataSuggestion } from '../api';
 import { useAsync } from '../hooks/useAsync';
 import type { MediaItem, PlayableFile, SubtitleTrack } from '../types';
+import DownloadLink from './DownloadLink';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 interface MediaItemPageProps {
@@ -260,6 +261,7 @@ const MediaItemPage: React.FC<MediaItemPageProps> = ({ serverId, folderName, ite
                 ▶ Play
               </Button>
             )}
+            {item.mediaUrl && <DownloadLink mediaUrl={item.mediaUrl} />}
             <Button onClick={toggleWatched} disabled={togglingWatch}>
               {item.watched ? '✓ Watched — mark unwatched' : 'Mark as watched'}
             </Button>
@@ -274,6 +276,7 @@ const MediaItemPage: React.FC<MediaItemPageProps> = ({ serverId, folderName, ite
                       {v.fileName}{v.quality ? <span className="mm-muted"> · {v.quality}</span> : null}
                     </span>
                     <Button onClick={() => onPlay(`${item.title} — ${v.title}`, v.mediaUrl, item.imageUrl, v.subtitles && v.subtitles.length ? v.subtitles : item.subtitles, watchTarget)}>▶ Play</Button>
+                    <DownloadLink mediaUrl={v.mediaUrl} label="⬇" />
                   </li>
                 ))}
               </ul>

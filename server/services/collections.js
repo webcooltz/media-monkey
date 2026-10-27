@@ -60,6 +60,8 @@ function attachedMembers(name) {
       imageUrl: item ? item.imageUrl : undefined,
       mediaUrl: item ? item.mediaUrl : null,
       quality: item ? item.quality : null,
+      watched: item ? item.watched : false,
+      progressPct: item ? item.progressPct : 0,
       subtitles: item ? item.subtitles : [],
       serverId: m.server_id,
       folderName: m.folder_name,

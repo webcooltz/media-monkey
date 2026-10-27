@@ -12,7 +12,8 @@ import Button from './components/ui/Button';
 import SidePanel from './components/SidePanel';
 import LoginPage from './components/LoginPage';
 import { paths } from './routes';
-import { api, getActiveProfileId, setActiveProfileId, setUnauthorizedHandler } from './api';
+import { useBack } from './hooks/useBack';
+import { api, getActiveProfileId, setActiveProfileId, setConnectionHandler, setUnauthorizedHandler } from './api';
 import { mediaCategories, categoryForFolder } from './mediaCategories';
 import type { CollectionSummary, MediaItemWithSource, ServerSettings, SubtitleTrack } from './types';
 import './App.css';
@@ -128,13 +129,14 @@ function ItemRoute() {
   const { serverId = '', folderName = '', itemTitle = '' } = useParams();
   const navigate = useNavigate();
   const play = usePlay();
+  const back = useBack(paths.folder(serverId, folderName));
   return (
     <MediaItemPage
       key={`${serverId}:${folderName}:${itemTitle}`}
       serverId={serverId}
       folderName={folderName}
       itemTitle={itemTitle}
-      onBack={() => navigate(paths.folder(serverId, folderName))}
+      onBack={back}
       onSelectSeason={(seasonName) => navigate(paths.season(serverId, folderName, itemTitle, seasonName))}
       onPlay={play}
       onRenamed={(newTitle) => navigate(paths.item(serverId, folderName, newTitle), { replace: true })}
@@ -144,8 +146,8 @@ function ItemRoute() {
 
 function SeasonRoute() {
   const { serverId = '', folderName = '', itemTitle = '', seasonName = '' } = useParams();
-  const navigate = useNavigate();
   const play = usePlay();
+  const back = useBack(paths.item(serverId, folderName, itemTitle));
   return (
     <SeasonPage
       key={`${serverId}:${folderName}:${itemTitle}:${seasonName}`}
@@ -153,7 +155,7 @@ function SeasonRoute() {
       folderName={folderName}
       showTitle={itemTitle}
       seasonName={seasonName}
-      onBack={() => navigate(paths.item(serverId, folderName, itemTitle))}
+      onBack={back}
       onPlay={play}
     />
   );
@@ -186,11 +188,12 @@ function CollectionsRoute() {
 function CollectionRoute() {
   const { name = '' } = useParams();
   const navigate = useNavigate();
+  const back = useBack(paths.collections());
   return (
     <CollectionPage
       key={name}
       name={name}
-      onBack={() => navigate(paths.collections())}
+      onBack={back}
       onOpenItem={(serverId, folderName, itemTitle) => navigate(paths.item(serverId, folderName, itemTitle))}
     />
   );
@@ -214,6 +217,8 @@ function App() {
   const location = useLocation();
   const [profileId, setProfileId] = useState<number | null>(getActiveProfileId());
   const [servers, setServers] = useState<ServerSettings[] | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
   const [openFolderMenu, setOpenFolderMenu] = useState<{ serverId: string; folder: string } | null>(null);
   const [refreshingFolder, setRefreshingFolder] = useState<{ serverId: string; folder: string } | null>(null);
   const [auth, setAuth] = useState<{ required: boolean; authed: boolean } | null>(null);
@@ -230,7 +235,28 @@ function App() {
 
   // Load the library once authenticated, and again whenever the active profile
   // changes (watched marks + progress are per profile).
-  useEffect(() => { if (auth?.authed) fetchServers(); }, [auth?.authed, profileId]);
+  useEffect(() => { if (auth?.authed) fetchServers(); }, [auth?.authed, profileId, retryTick]);
+
+  // Offline detection: any failed API call flips the banner on; a light /healthz
+  // poll (fast while offline, slow otherwise) flips it off and reloads the data.
+  useEffect(() => { setConnectionHandler(setOffline); }, []);
+  useEffect(() => {
+    const check = async () => {
+      if (document.hidden && !offline) return; // don't wake a background tab just to ping
+      try {
+        const res = await fetch('/healthz', { cache: 'no-store' });
+        if (!res.ok) throw new Error('unhealthy');
+        if (offline) { setOffline(false); setRetryTick(t => t + 1); }
+      } catch {
+        setOffline(true);
+      }
+    };
+    const id = setInterval(check, offline ? 3000 : 10000);
+    document.addEventListener('visibilitychange', check); // re-check as soon as the tab is back
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', check); };
+  }, [offline]);
+
+  const offlineFolders = (servers ?? []).flatMap(s => s.folders.filter(f => f.mediaLocation && f.available === false).map(f => f.name));
 
   const switchProfile = useCallback((id: number) => {
     setActiveProfileId(id);
@@ -270,8 +296,18 @@ function App() {
         onSwitchProfile={switchProfile}
       />
       <main className="library-home">
+        {offline && (
+          <div className="banner banner--error" role="alert">
+            <strong>Server offline.</strong> Can’t reach Media Monkey — retrying automatically. Anything already loaded keeps working.
+          </div>
+        )}
+        {!offline && offlineFolders.length > 0 && (
+          <div className="banner banner--warn" role="status">
+            <strong>{offlineFolders.join(', ')}</strong> {offlineFolders.length === 1 ? 'is' : 'are'} offline — the folder can’t be read (drive unplugged or path moved). Showing the last known library.
+          </div>
+        )}
         <Suspense fallback={<div style={{ padding: '2rem' }}>Loading…</div>}>
-        <Routes key={profileId ?? 0}>
+        <Routes key={`${profileId ?? 0}:${location.pathname.startsWith('/play') ? 0 : retryTick}`}>
           <Route path="/" element={<HomePage servers={servers} />} />
           <Route path="/setup" element={<SetupWizard servers={servers} onSaved={setServers} onFinish={() => { markSetupDone(); navigate('/'); }} />} />
           <Route path="/settings" element={servers ? <SettingsPage servers={servers} onSaved={setServers} /> : <div style={{ padding: '2rem' }}>Loading...</div>} />

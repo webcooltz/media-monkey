@@ -7,6 +7,11 @@ export const API_BASE = '/api';
 let onUnauthorized: (() => void) | null = null;
 export function setUnauthorizedHandler(fn: () => void) { onUnauthorized = fn; }
 
+// Notified when the server can't be reached (true) or answers again (false), so the
+// app can show an offline banner instead of a wall of "Failed to fetch" errors.
+let onConnection: ((offline: boolean) => void) | null = null;
+export function setConnectionHandler(fn: (offline: boolean) => void) { onConnection = fn; }
+
 // Active profile (who's watching). Sent on every request so watch state is per person.
 const PROFILE_KEY = 'mm_profile';
 let activeProfileId: number | null = (() => {
@@ -24,7 +29,19 @@ export function setActiveProfileId(id: number) {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { ...(init?.headers as Record<string, string> | undefined) };
   if (activeProfileId != null) headers['X-Profile-Id'] = String(activeProfileId);
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  } catch {
+    onConnection?.(true);
+    throw new Error('Can’t reach the Media Monkey server.');
+  }
+  // Bad gateway / unavailable / timeout: a proxy is up but the server behind it isn't.
+  if (res.status === 502 || res.status === 503 || res.status === 504) {
+    onConnection?.(true);
+    throw new Error('The Media Monkey server is unavailable.');
+  }
+  onConnection?.(false);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 401 && onUnauthorized) onUnauthorized();

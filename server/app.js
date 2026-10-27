@@ -93,6 +93,11 @@ app.use('/media', auth.requireAuth, (req, res, next) => {
     return res.status(404).send('Media file not found');
   }
 
+  // ?download=1 → save-as attachment with the original filename (range requests still work).
+  if (req.query.download) {
+    return res.download(targetPath, path.basename(targetPath), { maxAge: '7d' });
+  }
+
   // Cache posters/media on the client so grid scrolls don't re-hit the Pi's CPU + SD.
   return res.sendFile(targetPath, { maxAge: '7d' });
 });
@@ -131,6 +136,12 @@ if (fs.existsSync(clientDistPath)) {
 app.use((err, req, res, next) => {
   if (err && err.type === 'entity.too.large') return res.status(413).json({ error: 'Payload too large' });
   if (err && err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid JSON body' });
+  // Errors from express/send carry their own client-error status (416 bad Range, 404…).
+  const status = err && (err.status || err.statusCode);
+  if (status >= 400 && status < 500) {
+    if (res.headersSent) return res.end();
+    return res.status(status).json({ error: err.message || 'Request failed' });
+  }
   console.error('[server] Unhandled error:', err);
   if (res.headersSent) return res.end();
   res.status(500).json({ error: 'Internal server error' });

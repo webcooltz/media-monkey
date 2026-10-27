@@ -49,6 +49,8 @@ export interface PlayableFile {
 export interface FolderSettings {
   name: string;
   mediaLocation: string;
+  /** false when the folder's path can't be read (unplugged drive, moved path). */
+  available?: boolean;
   media?: MediaItem[];
   children?: string[];
 }

@@ -948,3 +948,36 @@ img {
   .library-header__logo { width: 72px; height: 72px; }
   .library-header h1 { font-size: 1.9rem; margin: 12px 0 4px; }
 }
+
+
+/* ---- Status banners (server offline / folder offline) ---- */
+.banner {
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  font-size: 0.92rem;
+  border: 1px solid;
+}
+.banner--error {
+  background: color-mix(in srgb, #e5484d 16%, var(--bg));
+  border-color: #e5484d;
+  color: var(--text-h);
+  position: sticky;
+  top: 0.5rem;
+  z-index: 40;
+}
+.banner--warn {
+  background: color-mix(in srgb, var(--accent-2) 14%, var(--bg));
+  border-color: var(--accent-2);
+  color: var(--text-h);
+}
+
+.player-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.player-tools progress { width: 200px; accent-color: var(--accent); }
+a.mm-btn { text-decoration: none; display: inline-flex; align-items: center; }

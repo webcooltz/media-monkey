@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { api } from '../api';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import Button from './ui/Button';
+import DownloadLink from './DownloadLink';
 
 interface MediaPlayerPageProps {
   title: string;
@@ -31,6 +33,7 @@ type PlaybackProgress = {
 type PlaybackMode = 'directplay' | 'remux' | 'hls';
 type ResolvedPlayback = { mode: PlaybackMode; url: string };
 
+const MAX_BUFFER_BYTES = 1.5 * 1024 * 1024 * 1024; // keep in-memory copies to a sane size
 const PROGRESS_PREFIX = 'media-progress:';
 
 function getSavedResumeTime(progressKey: string) {
@@ -75,6 +78,15 @@ const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, post
   const resumeTime = finished ? null : savedResume;
   const [playbackError, setPlaybackError] = useState(false);
 
+  // "Load whole file": download the video into memory first so playback never
+  // stalls on a slow link. Direct-play only (remux/HLS are generated on the fly).
+  const [buffer, setBuffer] = useState<{ state: 'idle' | 'loading' | 'done' | 'error'; pct: number; message?: string }>({ state: 'idle', pct: 0 });
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const swapRef = useRef<{ t: number; playing: boolean } | null>(null);
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
+  useEffect(() => () => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, [blobUrl]);
+
   // Resolve the playback mode for stream URLs.
   useEffect(() => {
     if (!isStream) return;
@@ -110,7 +122,7 @@ const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, post
   }, [playback]);
 
   const saveProgress = () => {
-    if (seekLimited) return; // remux timeline isn't seek-stable — don't persist resume points
+    if (seekLimited || swapRef.current) return; // remux timeline / mid-swap isn't seek-stable — don't persist resume points
     const player = playerRef.current;
     if (!player || !Number.isFinite(player.currentTime)) {
       return;
@@ -128,7 +140,6 @@ const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, post
     const progress: PlaybackProgress = {
       currentTime: player.currentTime,
       duration,
-      // eslint-disable-next-line react-hooks/purity -- runs from media event handlers, not render
       updatedAt: Date.now(),
     };
     localStorage.setItem(progressKey, JSON.stringify(progress));
@@ -148,6 +159,13 @@ const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, post
 
   const handleLoadedMetadata = () => {
     const player = playerRef.current;
+    const swap = swapRef.current;
+    if (swap && player) { // source was just swapped to the in-memory copy: pick up where we were
+      swapRef.current = null;
+      player.currentTime = swap.t;
+      if (swap.playing) player.play().catch(() => {});
+      return;
+    }
     if (!player || resumeTime == null) {
       return;
     }
@@ -164,7 +182,44 @@ const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, post
   };
 
   // For HLS the source is attached in the effect above, so leave src unset.
-  const videoSrc = playback && playback.mode !== 'hls' ? playback.url : undefined;
+  const videoSrc = blobUrl ?? (playback && playback.mode !== 'hls' ? playback.url : undefined);
+
+  const canBuffer = playback?.mode === 'directplay' && !blobUrl;
+
+  const bufferAhead = async () => {
+    if (!playback || playback.mode !== 'directplay') return;
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setBuffer({ state: 'loading', pct: 0 });
+    try {
+      const res = await fetch(playback.url, { signal: ctrl.signal });
+      if (!res.ok || !res.body) throw new Error(`Server returned ${res.status}`);
+      const total = Number(res.headers.get('content-length')) || 0;
+      if (total > MAX_BUFFER_BYTES) throw new Error('File is too large to hold in memory — use Download instead.');
+      const reader = res.body.getReader();
+      const chunks: BlobPart[] = [];
+      let got = 0;
+      let lastPct = -1;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value as BlobPart);
+        got += value.length;
+        if (got > MAX_BUFFER_BYTES) { ctrl.abort(); throw new Error('File is too large to hold in memory — use Download instead.'); }
+        const pct = total ? Math.floor((got / total) * 100) : 0;
+        if (pct !== lastPct) { lastPct = pct; setBuffer({ state: 'loading', pct }); }
+      }
+      const player = playerRef.current;
+      if (player) swapRef.current = { t: player.currentTime, playing: !player.paused };
+      setBlobUrl(URL.createObjectURL(new Blob(chunks, { type: res.headers.get('content-type') || undefined })));
+      setBuffer({ state: 'done', pct: 100 });
+    } catch (e) {
+      if (ctrl.signal.aborted && abortRef.current !== ctrl) return; // cancelled / unmounted
+      setBuffer({ state: 'error', pct: 0, message: e instanceof Error ? e.message : 'Could not load the file' });
+    }
+  };
+
+  const cancelBuffer = () => { abortRef.current = null; setBuffer({ state: 'idle', pct: 0 }); };
 
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto', padding: 24 }}>
@@ -209,6 +264,7 @@ const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, post
           ref={playerRef as React.RefObject<HTMLAudioElement>}
           controls
           autoPlay
+          preload="auto"
           src={videoSrc}
           onLoadedMetadata={handleLoadedMetadata}
           onTimeUpdate={saveProgress}
@@ -223,6 +279,7 @@ const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, post
           ref={playerRef as React.RefObject<HTMLVideoElement>}
           controls
           autoPlay
+          preload="auto"
           crossOrigin="anonymous"
           poster={posterUrl}
           src={videoSrc}
@@ -246,6 +303,21 @@ const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, post
           Your browser does not support this media format.
         </video>
       )}
+      <div className="player-tools">
+        {canBuffer && buffer.state === 'idle' && (
+          <Button onClick={bufferAhead} title="Download the whole file first so playback never stalls">⏬ Load whole file</Button>
+        )}
+        {buffer.state === 'loading' && (
+          <>
+            <progress value={buffer.pct} max={100} aria-label="Loading file" />
+            <span className="mm-muted">{buffer.pct}%</span>
+            <Button variant="ghost" onClick={cancelBuffer}>Cancel</Button>
+          </>
+        )}
+        {buffer.state === 'done' && <span className="mm-muted">✓ Fully loaded — playing from memory</span>}
+        {buffer.state === 'error' && <span style={{ color: '#e55' }}>{buffer.message}</span>}
+        <DownloadLink mediaUrl={mediaUrl} />
+      </div>
     </div>
   );
 };

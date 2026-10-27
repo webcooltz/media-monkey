@@ -81,6 +81,11 @@ describe('library API', () => {
     assert.equal((await get('/api/media/server1/Nope')).status, 404);
   });
 
+  test('folders report availability so the UI can show an offline notice', async () => {
+    const body = await (await get('/api/media')).json();
+    assert.equal(body.servers[0].folders.find(f => f.name === 'Movies').available, true);
+  });
+
   test('GET /api/search finds items', async () => {
     const body = await (await get('/api/search?q=orbit')).json();
     assert.equal(body.results.length, 1);
@@ -144,6 +149,21 @@ describe('/media file serving', () => {
   test('serves a file inside a library folder', async () => {
     const res = await get('/media/Movies/Neon%20Harbor%20(2019)/Neon%20Harbor%20(2019).1080p.mp4');
     assert.equal(res.status, 200);
+  });
+
+  test('?download=1 serves the file as an attachment with its original name', async () => {
+    const res = await get('/media/Movies/Neon%20Harbor%20(2019)/Neon%20Harbor%20(2019).1080p.mp4?download=1');
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-disposition'), /attachment; filename="Neon Harbor \(2019\)\.1080p\.mp4"/);
+  });
+
+  test('an unsatisfiable Range request returns 416, not 500', async () => {
+    const res = await get('/media/Movies/Neon%20Harbor%20(2019)/Neon%20Harbor%20(2019).1080p.mp4', { Range: 'bytes=10-20' });
+    assert.equal(res.status, 416);
+  });
+
+  test('download still refuses path traversal', async () => {
+    assert.equal((await get('/media/Movies/..%2F..%2Fsecret.txt?download=1')).status, 403);
   });
 
   test('blocks path traversal', async () => {

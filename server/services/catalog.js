@@ -1,5 +1,6 @@
 const { getDb } = require('../db');
 const scanner = require('./scanner');
+const fs = require('fs');
 const profiles = require('./profiles');
 
 // Sort key for a media item: the per-item override if set, else the title with a
@@ -167,6 +168,14 @@ function clearChildCache(folderId) {
   getDb().prepare('DELETE FROM child_cache WHERE folder_id = ?').run(folderId);
 }
 
+function isDirAvailable(p) {
+  try {
+    return !!p && fs.statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 // GET /api/media — all servers with folders + (additively synced) media.
 function getServersWithMedia() {
   const db = getDb();
@@ -181,6 +190,9 @@ function getServersWithMedia() {
         return {
           name: folder.name,
           mediaLocation: folder.media_location,
+          // false when the configured path can't be read (e.g. an unplugged drive), so the
+          // UI can show an offline notice while still listing the last known items.
+          available: isDirAvailable(folder.media_location),
           media,
           children: media.map(m => m.title),
         };

@@ -30,6 +30,8 @@
 - **Search**: instant title search across every folder and collection (press `/` to focus)
 - **Profiles**: "who's watching?" switcher with separate watched marks and resume points per person, no passwords. Each profile can pick its own **colors** (defaults: `#0165f1` blue + `#fdc603` yellow)
 - **Auto-scan**: background rescans pick up new/removed files, posters and subtitles. Unmounted drives are skipped, never wiped
+- **Download or buffer ahead**: save any movie file from its page, or "Load whole file" in the player to buffer it fully before/while watching
+- **Resilient**: an offline banner appears if the server drops (and clears on its own); unplugged media drives show a notice instead of breaking the library; the server logs stray errors instead of crashing
 - Library rows for TV, movies, music and audiobooks, plus user-defined **collections** that span folders
 - Seasons/episodes, collection folders, per-item **sort-name** override (ignores leading "The/A/An")
 - Playback with **Direct Play**, on-the-fly **remux** (mkv/avi → mp4) and **HLS transcode** (HEVC/AV1 → h264) via ffmpeg

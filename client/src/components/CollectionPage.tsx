@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import Poster from './ui/Poster';
+import MediaCard from './MediaCard';
 import Button from './ui/Button';
 import { api } from '../api';
 import { useAsync } from '../hooks/useAsync';
@@ -86,15 +86,12 @@ const CollectionPage: React.FC<CollectionPageProps> = ({ name, onBack, onOpenIte
       {members.length > 0 ? (
         <div className="media-flex-row">
           {members.map((m, idx) => (
-            <div key={memberKey({ serverId: m.serverId, folderName: m.folderName, title: m.title }) + idx} style={{ textAlign: 'center', width: 140 }}>
-              <div
-                style={{ cursor: 'pointer' }}
-                onClick={() => onOpenItem(m.serverId, m.folderName, m.itemTitle || m.title)}
-              >
-                <Poster src={m.imageUrl} alt={m.title} width={120} height={180} quality={m.quality} />
-                <div className="card-title">{m.title}</div>
+            <div key={memberKey({ serverId: m.serverId, folderName: m.folderName, title: m.title }) + idx} style={{ textAlign: 'center' }}>
+              {/* Same card (hover lift, quality badge, watched/progress overlay) as the home screen. */}
+              <div onClick={() => onOpenItem(m.serverId, m.folderName, m.itemTitle || m.title)}>
+                <MediaCard item={m} />
               </div>
-              <div className="mm-muted" style={{ fontSize: 11 }}>
+              <div className="mm-muted" style={{ fontSize: 11, marginTop: 6 }}>
                 {m.type === 'show' ? 'TV show' : 'Movie'}{m.source === 'attached' ? '' : ' · in folder'}
               </div>
               <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 6, flexWrap: 'wrap' }}>
