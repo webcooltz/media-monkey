@@ -1,6 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { paths } from '../routes';
+import SearchBar from './SearchBar';
+import ProfileSwitcher from './ProfileSwitcher';
 
 interface SidePanelProps {
   servers: Array<{
@@ -13,12 +15,19 @@ interface SidePanelProps {
   onRefreshFolder: (serverId: string, folderName: string) => void;
   refreshingFolder: { serverId: string; folder: string } | null;
   onLogout?: () => void;
+  activeProfileId: number | null;
+  onSwitchProfile: (id: number) => void;
 }
 
-const SidePanel: React.FC<SidePanelProps> = ({ servers, openFolderMenu, setOpenFolderMenu, onRefreshFolder, refreshingFolder, onLogout }) => {
+const SidePanel: React.FC<SidePanelProps> = ({ servers, openFolderMenu, setOpenFolderMenu, onRefreshFolder, refreshingFolder, onLogout, activeProfileId, onSwitchProfile }) => {
   const navigate = useNavigate();
   return (
     <aside className="sidebar">
+      <button className="sidebar-brand" onClick={() => navigate(paths.home())} aria-label="Media Monkey home">
+        <img src="/favicon-48.png" alt="" width={32} height={32} />
+        <span>Media Monkey</span>
+      </button>
+      <SearchBar />
       <button className="sidebar-home-btn" onClick={() => navigate(paths.home())}>🏠 Home</button>
       <button className="sidebar-settings-btn" onClick={() => navigate(paths.settings())}>⚙️ Settings</button>
       <h2 className="sidebar-title">Servers</h2>
@@ -79,6 +88,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ servers, openFolderMenu, setOpenF
           </li>
         ))}
       </ul>
+      <ProfileSwitcher activeId={activeProfileId} onSwitch={onSwitchProfile} />
       {onLogout && (
         <button className="sidebar-settings-btn" style={{ marginTop: 'auto' }} onClick={onLogout}>🔒 Log out</button>
       )}

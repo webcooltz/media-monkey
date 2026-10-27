@@ -4,6 +4,7 @@ import Button from './ui/Button';
 import { api } from '../api';
 import { useAsync } from '../hooks/useAsync';
 import type { CollectionDetail, CollectionMember, ServerSettings } from '../types';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 interface CollectionPageProps {
   name: string;
@@ -14,6 +15,7 @@ interface CollectionPageProps {
 type Candidate = { serverId: string; folderName: string; title: string; type: string };
 
 const CollectionPage: React.FC<CollectionPageProps> = ({ name, onBack, onOpenItem }) => {
+  useDocumentTitle(name);
   const { data, loading, error, setData } = useAsync<CollectionDetail>(
     async () => await api.getCollection(name), [name]);
   // Candidate items to attach: every movie/show across all folders.

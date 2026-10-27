@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import MediaCard from './MediaCard';
 import Button from './ui/Button';
 import { api } from '../api';
 import { useAsync } from '../hooks/useAsync';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { categoryForFolder } from '../mediaCategories';
 import type { MediaItem } from '../types';
 
@@ -13,16 +14,18 @@ interface FolderProps {
 }
 
 const Folder: React.FC<FolderProps> = ({ serverId, folderName, onSelectMediaItem }) => {
+  useDocumentTitle(folderName);
   const invalid = !serverId || !folderName;
-  const { data, loading, error } = useAsync<MediaItem[]>(
+  const { data, loading, error, setData } = useAsync<MediaItem[]>(
     async () => (invalid ? [] : (await api.getFolderMedia(serverId, folderName)).media),
     [serverId, folderName]
   );
 
-  const [media, setMedia] = useState<MediaItem[]>([]);
+  // Loaded list doubles as local state so batch fetches can replace it in place.
+  const media = data ?? [];
+  const setMedia = setData;
   const [fetchingAll, setFetchingAll] = useState(false);
   const [fetchStatus, setFetchStatus] = useState<string | null>(null);
-  useEffect(() => { if (data) setMedia(data); }, [data]);
 
   // Only movies/TV items have fetchable metadata.
   const cat = categoryForFolder(folderName);

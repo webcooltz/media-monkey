@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import FolderPicker from './FolderPicker';
+import ScanPanel from './ScanPanel';
 import Button from './ui/Button';
 import { api, type KeyStatus, type ProviderStatus } from '../api';
 import type { ServerSettings } from '../types';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 // One row in the API-keys panel: name, live status, and any quota/remaining detail.
 function KeyStatusRow({ label, s, purpose }: { label: string; s?: ProviderStatus; purpose: string }) {
@@ -37,6 +39,7 @@ interface SettingsPageProps {
 const clone = (servers: ServerSettings[]): ServerSettings[] => JSON.parse(JSON.stringify(servers));
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ servers, onSaved }) => {
+  useDocumentTitle('Settings');
   const [draft, setDraft] = useState<ServerSettings[]>(servers ? clone(servers) : []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,6 +97,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ servers, onSaved }) => {
       <p className="mm-muted" style={{ marginBottom: 24 }}>
         Edit your media folder paths here. Changes take effect after saving — the library will rescan automatically.
       </p>
+
+      <ScanPanel onScanned={() => api.getServers().then(d => onSaved(d.servers)).catch(() => {})} />
 
       <div className="mm-panel" style={{ marginBottom: 32 }}>
         <h2 style={{ marginTop: 0 }}>API keys</h2>

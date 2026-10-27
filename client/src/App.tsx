@@ -1,20 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Routes, Route, useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import MediaCard from './components/MediaCard';
 import Folder from './components/Folder';
 import MediaItemPage from './components/MediaItemPage';
 import SeasonPage from './components/SeasonPage';
-import MediaPlayerPage from './components/MediaPlayerPage';
+import SetupWizard from './components/SetupWizard';
 import CollectionsPage from './components/CollectionsPage';
 import CollectionPage from './components/CollectionPage';
 import SettingsPage from './components/SettingsPage';
+import Button from './components/ui/Button';
 import SidePanel from './components/SidePanel';
 import LoginPage from './components/LoginPage';
 import { paths } from './routes';
-import { api, setUnauthorizedHandler } from './api';
+import { api, getActiveProfileId, setActiveProfileId, setUnauthorizedHandler } from './api';
 import { mediaCategories, categoryForFolder } from './mediaCategories';
 import type { CollectionSummary, MediaItemWithSource, ServerSettings, SubtitleTrack } from './types';
 import './App.css';
+
+// hls.js makes the player heavy — load it only when something is actually played.
+const MediaPlayerPage = lazy(() => import('./components/MediaPlayerPage'));
+
+const SETUP_DONE_KEY = 'mm_setup_done';
+const setupDone = () => { try { return localStorage.getItem(SETUP_DONE_KEY) === '1'; } catch { return true; } };
+const markSetupDone = () => { try { localStorage.setItem(SETUP_DONE_KEY, '1'); } catch { /* ignore */ } };
 
 export type WatchTarget = { serverId: string; folderName: string; itemTitle: string };
 
@@ -37,6 +45,9 @@ function HomePage({ servers }: { servers: ServerSettings[] | null }) {
     if (cat && folder.media) buckets[cat.key].push(...folder.media.map(item => ({ ...item, serverId: server.id, folderName: folder.name })));
   }));
 
+  const hasAnyLocation = !!servers?.some(sv => sv.folders.some(f => f.mediaLocation));
+  const hasAnyMedia = !!servers?.some(sv => sv.folders.some(f => f.media && f.media.length > 0)) || collections.length > 0;
+
   const Row = ({ items, k }: { items: MediaItemWithSource[]; k: string }) => {
     const scrollBy = 220;
     return (
@@ -57,9 +68,23 @@ function HomePage({ servers }: { servers: ServerSettings[] | null }) {
   return (
     <>
       <header className="library-header">
-        <h1>My Media Library</h1>
+        <img className="library-header__logo" src="/logo.png" alt="" width={96} height={96} />
+        <h1>Media Monkey</h1>
         <p>Browse and manage your personal collection</p>
       </header>
+      {servers && !hasAnyMedia && (
+        <section className="empty-state" role="status">
+          <h2>{hasAnyLocation ? 'No media found yet' : 'Welcome — let’s add your media'}</h2>
+          <p>
+            {hasAnyLocation
+              ? 'Your folders are set up but nothing was found. Check the paths in Settings, or use “Refresh” on a folder after adding files.'
+              : 'Point media-monkey at the folders on your computer or server that hold your movies, TV shows, music and audiobooks.'}
+          </p>
+          <Button variant="primary" onClick={() => navigate(hasAnyLocation ? paths.settings() : '/setup')}>
+            {hasAnyLocation ? 'Open Settings' : 'Start setup'}
+          </Button>
+        </section>
+      )}
       <section className="media-lists">
         {collections.length > 0 && (
           <div className="media-list" key="collections">
@@ -75,7 +100,7 @@ function HomePage({ servers }: { servers: ServerSettings[] | null }) {
             </div>
           </div>
         )}
-        {mediaCategories.map(cat => (
+        {hasAnyMedia && mediaCategories.map(cat => (
           <div className="media-list" key={cat.key}>
             <h2>{cat.label}</h2>
             <Row items={buckets[cat.key]} k={cat.key} />
@@ -185,6 +210,9 @@ function ServerRoute({ servers }: { servers: ServerSettings[] | null }) {
 }
 
 function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [profileId, setProfileId] = useState<number | null>(getActiveProfileId());
   const [servers, setServers] = useState<ServerSettings[] | null>(null);
   const [openFolderMenu, setOpenFolderMenu] = useState<{ serverId: string; folder: string } | null>(null);
   const [refreshingFolder, setRefreshingFolder] = useState<{ serverId: string; folder: string } | null>(null);
@@ -200,8 +228,21 @@ function App() {
       .catch(() => setAuth({ required: false, authed: true }));
   }, []);
 
-  // Load the library only once authenticated.
-  useEffect(() => { if (auth?.authed) fetchServers(); }, [auth?.authed]);
+  // Load the library once authenticated, and again whenever the active profile
+  // changes (watched marks + progress are per profile).
+  useEffect(() => { if (auth?.authed) fetchServers(); }, [auth?.authed, profileId]);
+
+  const switchProfile = useCallback((id: number) => {
+    setActiveProfileId(id);
+    setProfileId(id);
+  }, []);
+
+  // First run: nothing configured yet → guide the user through setup once.
+  useEffect(() => {
+    if (!servers || setupDone() || location.pathname !== '/') return;
+    const anyPath = servers.some(s => s.folders.some(f => f.mediaLocation));
+    if (!anyPath) navigate('/setup', { replace: true });
+  }, [servers, location.pathname, navigate]);
 
   const refreshFolder = (serverId: string, folderName: string) => {
     setRefreshingFolder({ serverId, folder: folderName });
@@ -225,10 +266,14 @@ function App() {
         onRefreshFolder={refreshFolder}
         refreshingFolder={refreshingFolder}
         onLogout={auth.required ? logout : undefined}
+        activeProfileId={profileId}
+        onSwitchProfile={switchProfile}
       />
       <main className="library-home">
-        <Routes>
+        <Suspense fallback={<div style={{ padding: '2rem' }}>Loading…</div>}>
+        <Routes key={profileId ?? 0}>
           <Route path="/" element={<HomePage servers={servers} />} />
+          <Route path="/setup" element={<SetupWizard servers={servers} onSaved={setServers} onFinish={() => { markSetupDone(); navigate('/'); }} />} />
           <Route path="/settings" element={servers ? <SettingsPage servers={servers} onSaved={setServers} /> : <div style={{ padding: '2rem' }}>Loading...</div>} />
           <Route path="/collections" element={<CollectionsRoute />} />
           <Route path="/collection/:name" element={<CollectionRoute />} />
@@ -239,6 +284,7 @@ function App() {
           <Route path="/play" element={<PlayerRoute />} />
           <Route path="*" element={<HomePage servers={servers} />} />
         </Routes>
+        </Suspense>
       </main>
     </div>
   );

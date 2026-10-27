@@ -12,13 +12,13 @@
   cursor: pointer;
   transition: background 0.15s, color 0.15s, opacity 0.15s;
 }
-.mm-btn:hover:not(:disabled) { background: var(--accent-bg); color: var(--accent); }
+.mm-btn:hover:not(:disabled) { background: var(--accent-bg); color: var(--accent-text); }
 .mm-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .mm-btn--primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 .mm-btn--primary:hover:not(:disabled) { background: var(--accent); color: #fff; filter: brightness(1.1); }
 .mm-btn--danger { background: #e05555; border-color: #e05555; color: #fff; }
 .mm-btn--danger:hover:not(:disabled) { background: #c94545; color: #fff; }
-.mm-btn--ghost { background: none; border-color: transparent; color: var(--accent); }
+.mm-btn--ghost { background: none; border-color: transparent; color: var(--accent-text); }
 .mm-btn--ghost:hover:not(:disabled) { background: var(--accent-bg); }
 
 /* Panel (bordered content box) */
@@ -38,7 +38,7 @@
 }
 .mm-panel__header h3 { margin: 0; font-size: 1rem; color: var(--text-h); }
 .mm-muted { color: var(--text); margin: 0; }
-.mm-status { margin: 0.5rem 0 0; font-size: 0.82rem; color: var(--accent); }
+.mm-status { margin: 0.5rem 0 0; font-size: 0.82rem; color: var(--accent-text); }
 
 /* Poster image + placeholder */
 .mm-poster {
@@ -120,7 +120,7 @@
   padding: 2rem;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
 }
-.login-card h1 { margin: 0; color: var(--accent); font-size: 1.6rem; }
+.login-card h1 { margin: 0; color: var(--accent-text); font-size: 1.6rem; }
 .login-input {
   padding: 0.6rem 0.75rem;
   border-radius: 0.5rem;
@@ -134,7 +134,7 @@
 .folder-picker__path {
   font-family: var(--mono);
   font-size: 0.8rem;
-  color: var(--accent);
+  color: var(--accent-text);
   word-break: break-all;
   margin-bottom: 0.5rem;
 }
@@ -156,4 +156,4 @@
   font-size: 0.9rem;
   cursor: pointer;
 }
-.folder-picker__row:hover { background: var(--accent-bg); color: var(--accent); }
+.folder-picker__row:hover { background: var(--accent-bg); color: var(--accent-text); }

@@ -1,9 +1,12 @@
 {
   "name": "media-monkey",
   "version": "1.0.0",
+  "engines": { "node": ">=24" },
   "scripts": {
     "install:all": "npm install --prefix client && npm install --prefix server",
     "build": "npm run build --prefix client",
+    "lint": "npm run lint --prefix client",
+    "test": "npm test --prefix server",
     "start": "node server/index.js",
     "dev:server": "npm run dev --prefix server",
     "dev:client": "npm run dev --prefix client",

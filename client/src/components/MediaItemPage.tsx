@@ -6,6 +6,7 @@ import Button from './ui/Button';
 import { api, type SubtitleSearchResult, type MetadataSuggestion } from '../api';
 import { useAsync } from '../hooks/useAsync';
 import type { MediaItem, PlayableFile, SubtitleTrack } from '../types';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 interface MediaItemPageProps {
   serverId: string;
@@ -23,6 +24,7 @@ interface LoadedItem {
 }
 
 const MediaItemPage: React.FC<MediaItemPageProps> = ({ serverId, folderName, itemTitle, onBack, onSelectSeason, onPlay, onRenamed }) => {
+  useDocumentTitle(itemTitle);
   const invalid = !serverId || !folderName || !itemTitle;
 
   const { data, loading, error, setData } = useAsync<LoadedItem>(async () => {
@@ -82,6 +84,7 @@ const MediaItemPage: React.FC<MediaItemPageProps> = ({ serverId, folderName, ite
   // Show suggestions saved by a batch "Fetch all" as soon as the item loads.
   useEffect(() => {
     if (item?.suggestions && item.suggestions.length) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- seed UI from the loaded item
       setMetaSuggestions(item.suggestions);
       setMetaStatus('No exact match from “Fetch all” — pick the right one, or skip.');
     }

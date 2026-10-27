@@ -1,5 +1,6 @@
 const { getDb } = require('../db');
 const scanner = require('./scanner');
+const profiles = require('./profiles');
 
 // Sort key for a media item: the per-item override if set, else the title with a
 // leading article ("The"/"A"/"An") dropped so "The Matrix" files under M.
@@ -13,7 +14,34 @@ function bySortName(a, b) {
   return sortNameOf(a).localeCompare(sortNameOf(b));
 }
 
-function rowToItem(row) {
+// Overlay the active profile's watch state onto media_items rows. Done in one
+// query per folder so listing stays cheap.
+function withWatchState(rows, folderId) {
+  const pid = profiles.currentProfileId();
+  const states = new Map(
+    getDb().prepare(
+      `SELECT w.* FROM watch_state w JOIN media_items m ON m.id = w.item_id
+       WHERE m.folder_id = ? AND w.profile_id = ?`
+    ).all(folderId, pid).map(w => [w.item_id, w])
+  );
+  return rows.map(r => applyWatch(r, states.get(r.id)));
+}
+
+function applyWatch(row, state) {
+  return {
+    ...row,
+    watched: state ? state.watched : 0,
+    progress_seconds: state ? state.progress_seconds : null,
+    duration_seconds: state ? state.duration_seconds : null,
+    _watchApplied: true,
+  };
+}
+
+function rowToItem(inputRow) {
+  const row = inputRow._watchApplied
+    ? inputRow
+    : applyWatch(inputRow, getDb().prepare('SELECT * FROM watch_state WHERE profile_id = ? AND item_id = ?')
+      .get(profiles.currentProfileId(), inputRow.id));
   const hasMeta = row.tmdb_id || row.imdb_id || row.overview || row.rating != null || row.year;
   return {
     title: row.title,
@@ -47,9 +75,10 @@ function getFolderRow(serverId, folderName) {
 }
 
 function itemsForFolder(folderId) {
-  return getDb()
+  const rows = getDb()
     .prepare('SELECT * FROM media_items WHERE folder_id = ? ORDER BY title COLLATE NOCASE')
     .all(folderId);
+  return withWatchState(rows, folderId);
 }
 
 // Additive: insert newly-discovered items, leave existing rows (and their metadata) untouched.
@@ -105,6 +134,7 @@ function refreshFolder(serverId, folderRow) {
     db.exec('ROLLBACK');
     throw e;
   }
+  pruneOrphanWatchState();
   clearChildCache(folderRow.id); // disk changed — drop stale season/episode caches
   return itemsForFolder(folderRow.id).map(rowToItem).sort(bySortName);
 }
@@ -126,6 +156,11 @@ function getChildren(folderRow, cacheKey, scanFn, { refresh = false } = {}) {
        payload = excluded.payload, scanned_at = excluded.scanned_at`
   ).run(folderRow.id, cacheKey, JSON.stringify(media));
   return media;
+}
+
+// Drop watch rows whose item no longer exists (deleted/pruned items).
+function pruneOrphanWatchState() {
+  getDb().exec('DELETE FROM watch_state WHERE item_id NOT IN (SELECT id FROM media_items)');
 }
 
 function clearChildCache(folderId) {
@@ -199,6 +234,7 @@ function saveSettings(servers) {
       });
     });
     db.exec('DELETE FROM child_cache'); // folder paths may have changed — rebuild lazily
+    pruneOrphanWatchState();
     db.exec('COMMIT');
   } catch (e) {
     db.exec('ROLLBACK');
@@ -244,7 +280,10 @@ function setWatchState(serverId, folderName, itemTitle, { watched, progressSecon
   const item = db.prepare('SELECT * FROM media_items WHERE folder_id = ? AND title = ?').get(folderRow.id, itemTitle);
   if (!item) return { error: 'Item not found' };
 
-  let w = item.watched, p = item.progress_seconds, d = item.duration_seconds;
+  const pid = profiles.currentProfileId();
+  const cur = db.prepare('SELECT * FROM watch_state WHERE profile_id = ? AND item_id = ?').get(pid, item.id)
+    || { watched: 0, progress_seconds: null, duration_seconds: null };
+  let w = cur.watched, p = cur.progress_seconds, d = cur.duration_seconds;
   if (progressSeconds != null) {
     p = progressSeconds;
     if (durationSeconds != null) d = durationSeconds;
@@ -254,8 +293,14 @@ function setWatchState(serverId, folderName, itemTitle, { watched, progressSecon
     w = watched ? 1 : 0;
     if (watched) p = null; else if (progressSeconds == null) p = null; // mark unwatched clears progress
   }
-  db.prepare('UPDATE media_items SET watched = ?, progress_seconds = ?, duration_seconds = ? WHERE id = ?')
-    .run(w, p != null ? p : null, d != null ? d : null, item.id);
+  db.prepare(
+    `INSERT INTO watch_state (profile_id, item_id, watched, progress_seconds, duration_seconds)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(profile_id, item_id) DO UPDATE SET
+       watched = excluded.watched,
+       progress_seconds = excluded.progress_seconds,
+       duration_seconds = excluded.duration_seconds`
+  ).run(pid, item.id, w ? 1 : 0, p != null ? p : null, d != null ? d : null);
   return { item: rowToItem(db.prepare('SELECT * FROM media_items WHERE id = ?').get(item.id)) };
 }
 
@@ -293,7 +338,53 @@ function setItemImage(serverId, folderName, itemTitle, imageUrl) {
   return { item: rowToItem(db.prepare('SELECT * FROM media_items WHERE id = ?').get(item.id)) };
 }
 
+// Escape LIKE wildcards so user input is matched literally (ESCAPE '\').
+function likeEscape(s) {
+  return String(s).replace(/[\\%_]/g, ch => '\\' + ch);
+}
+
+// Title search across every folder + user collections. Prefix matches rank first.
+function searchMedia(query, limit = 30) {
+  const q = String(query || '').trim();
+  if (!q) return [];
+  const db = getDb();
+  const n = Math.min(Math.max(1, Number(limit) || 30), 100);
+  const contains = `%${likeEscape(q)}%`;
+  const prefix = `${likeEscape(q)}%`;
+  const items = db.prepare(
+    `SELECT m.title, m.type, m.image_url, m.year, f.server_id, f.name AS folder_name
+     FROM media_items m JOIN folders f ON f.id = m.folder_id
+     WHERE m.title LIKE ? ESCAPE '\\'
+     ORDER BY (m.title LIKE ? ESCAPE '\\') DESC, m.title COLLATE NOCASE
+     LIMIT ?`
+  ).all(contains, prefix, n).map(r => ({
+    kind: 'item',
+    title: r.title,
+    type: r.type,
+    imageUrl: r.image_url || undefined,
+    year: r.year || undefined,
+    serverId: r.server_id,
+    folderName: r.folder_name,
+  }));
+  const colls = db.prepare(
+    `SELECT name, cover_url FROM collections WHERE name LIKE ? ESCAPE '\\' ORDER BY name COLLATE NOCASE LIMIT ?`
+  ).all(contains, n).map(c => ({ kind: 'collection', title: c.name, type: 'collection', imageUrl: c.cover_url || undefined }));
+  return [...colls, ...items].slice(0, n);
+}
+
+// Every configured folder (for background scanning + setup status).
+function listFolders() {
+  return getDb().prepare(
+    `SELECT f.id, f.server_id, f.name, f.media_location, s.name AS server_name,
+            (SELECT COUNT(*) FROM media_items m WHERE m.folder_id = f.id) AS item_count
+     FROM folders f JOIN servers s ON s.id = f.server_id
+     ORDER BY s.position, f.position`
+  ).all();
+}
+
 module.exports = {
+  listFolders,
+  searchMedia,
   getServersWithMedia,
   getFolderMedia,
   getChildren,

@@ -28,7 +28,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   return (
     <div className="login-page">
       <form className="login-card" onSubmit={submit}>
-        <h1>🐒 Media Monkey</h1>
+        <img src="/logo.png" alt="" width={96} height={96} className="login-logo" />
+        <h1>Media Monkey</h1>
         <p className="mm-muted">Enter your password to continue.</p>
         <input
           type="password"

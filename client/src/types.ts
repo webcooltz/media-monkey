@@ -95,3 +95,49 @@ export interface CollectionDetail {
   coverUrl?: string | null;
   members: CollectionMember[];
 }
+
+export interface SearchResult {
+  kind: 'item' | 'collection';
+  title: string;
+  type: string;
+  imageUrl?: string;
+  year?: string;
+  serverId?: string;
+  folderName?: string;
+}
+
+export interface Profile {
+  id: number;
+  name: string;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+}
+
+export interface ScanResult {
+  folders: number;
+  skipped: number;
+  added: number;
+  removed: number;
+  errors: number;
+  durationMs?: number;
+  skippedRun?: boolean;
+}
+
+export interface ScanStatus {
+  enabled: boolean;
+  intervalMinutes: number;
+  running: boolean;
+  lastStartedAt: string | null;
+  lastFinishedAt: string | null;
+  lastResult: ScanResult | null;
+}
+
+export interface SetupStatus {
+  needsSetup: boolean;
+  node: string;
+  ffmpeg: boolean;
+  keys: { tmdb: boolean; omdb: boolean; opensubtitles: boolean };
+  authEnabled: boolean;
+  autoScanMinutes: number;
+  folders: Array<{ serverId: string; serverName: string; name: string; mediaLocation: string; exists: boolean; itemCount: number }>;
+}

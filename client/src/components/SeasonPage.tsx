@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Poster from './ui/Poster';
 import Button from './ui/Button';
 import { api, type SubtitleSearchResult } from '../api';
@@ -28,7 +28,7 @@ interface SubUi {
 }
 
 const SeasonPage: React.FC<SeasonPageProps> = ({ serverId, folderName, showTitle, seasonName, onBack, onPlay }) => {
-  const { data, loading, error } = useAsync<SeasonData>(async () => {
+  const { data, loading, error, setData } = useAsync<SeasonData>(async () => {
     const seasons = (await api.getSeasons(serverId, folderName, showTitle)).media;
     const cover = seasons.find(s => s.title === seasonName)?.imageUrl;
     const episodes = (await api.getEpisodes(serverId, folderName, showTitle, seasonName)).media;
@@ -36,9 +36,11 @@ const SeasonPage: React.FC<SeasonPageProps> = ({ serverId, folderName, showTitle
   }, [serverId, folderName, showTitle, seasonName]);
 
   // Local copy so downloaded subtitles can update an episode's track list live.
-  const [episodes, setEpisodes] = useState<MediaItem[]>([]);
+  const episodes = data?.episodes ?? [];
+  const setEpisodes = (update: (prev: MediaItem[]) => MediaItem[]) => {
+    if (data) setData({ ...data, episodes: update(data.episodes) });
+  };
   const [subUi, setSubUi] = useState<Record<string, SubUi>>({});
-  useEffect(() => { if (data) setEpisodes(data.episodes); }, [data]);
 
   const patchUi = (title: string, patch: SubUi) =>
     setSubUi(prev => ({ ...prev, [title]: { ...prev[title], ...patch } }));

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { api } from '../api';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 interface MediaPlayerPageProps {
   title: string;
@@ -47,6 +48,7 @@ function getSavedResumeTime(progressKey: string) {
 }
 
 const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, posterUrl, subtitles = [], watchTarget, onBack }) => {
+  useDocumentTitle(title);
   const playerRef = useRef<HTMLVideoElement | HTMLAudioElement>(null);
   const lastReport = useRef(0);
   const isStream = useMemo(() => mediaUrl.startsWith('/api/media/stream'), [mediaUrl]);
@@ -64,13 +66,20 @@ const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, post
   const seekLimited = playback?.mode === 'remux';
 
   const progressKey = `${PROGRESS_PREFIX}${mediaUrl}`;
-  const [resumeTime, setResumeTime] = useState<number | null>(null);
+  // Resume point is known once the timeline's seekability is (remux timelines aren't seek-stable).
+  const [finished, setFinished] = useState(false);
+  const savedResume = useMemo(
+    () => (!playback || playback.mode === 'remux' ? null : getSavedResumeTime(progressKey)),
+    [playback, progressKey],
+  );
+  const resumeTime = finished ? null : savedResume;
   const [playbackError, setPlaybackError] = useState(false);
 
   // Resolve the playback mode for stream URLs.
   useEffect(() => {
     if (!isStream) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset when the source changes
     setPlayback(null);
     setPlaybackError(false);
     fetch(mediaUrl.replace('/api/media/stream', '/api/media/streaminfo'))
@@ -79,12 +88,6 @@ const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, post
       .catch(() => { if (!cancelled) setPlaybackError(true); });
     return () => { cancelled = true; };
   }, [mediaUrl, isStream]);
-
-  // Set the resume point once we know whether the timeline is seekable.
-  useEffect(() => {
-    if (!playback) return;
-    setResumeTime(playback.mode === 'remux' ? null : getSavedResumeTime(progressKey));
-  }, [playback, progressKey]);
 
   // Load HLS sources: hls.js where unsupported natively, native <video src> on Safari.
   useEffect(() => {
@@ -125,6 +128,7 @@ const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, post
     const progress: PlaybackProgress = {
       currentTime: player.currentTime,
       duration,
+      // eslint-disable-next-line react-hooks/purity -- runs from media event handlers, not render
       updatedAt: Date.now(),
     };
     localStorage.setItem(progressKey, JSON.stringify(progress));
@@ -156,7 +160,7 @@ const MediaPlayerPage: React.FC<MediaPlayerPageProps> = ({ title, mediaUrl, post
   const handleEnded = () => {
     localStorage.removeItem(progressKey);
     if (watchTarget) api.setWatched(watchTarget.serverId, watchTarget.folderName, watchTarget.itemTitle, true).catch(() => {});
-    setResumeTime(null);
+    setFinished(true);
   };
 
   // For HLS the source is attached in the effect above, so leave src unset.

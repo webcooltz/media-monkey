@@ -42,7 +42,7 @@ const Poster: React.FC<PosterProps> = ({ src, alt, width = 120, height = 180, cl
       )}
       {showProgress && (
         <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 5, background: 'rgba(0,0,0,0.45)', pointerEvents: 'none' }}>
-          <div style={{ width: `${progressPct}%`, height: '100%', background: 'var(--accent, #aa3bff)' }} />
+          <div style={{ width: `${progressPct}%`, height: '100%', background: 'var(--accent-2, #fdc603)' }} />
         </div>
       )}
     </div>

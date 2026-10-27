@@ -77,12 +77,52 @@ CREATE TABLE IF NOT EXISTS collection_members (
   PRIMARY KEY (collection_id, server_id, folder_name, item_title)
 );
 
+-- Household profiles (no passwords) - each keeps its own watch state.
+CREATE TABLE IF NOT EXISTS profiles (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS watch_state (
+  profile_id       INTEGER NOT NULL,
+  item_id          INTEGER NOT NULL,
+  watched          INTEGER DEFAULT 0,
+  progress_seconds REAL,
+  duration_seconds REAL,
+  PRIMARY KEY (profile_id, item_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_folders_server ON folders(server_id);
 CREATE INDEX IF NOT EXISTS idx_items_folder ON media_items(folder_id);
 CREATE INDEX IF NOT EXISTS idx_collmembers_coll ON collection_members(collection_id);
 `;
 
-// One-time seed from the legacy settings.json so existing setups keep their folders.
+// Add a column introduced after a table first shipped; ignore only "duplicate column".
+function addColumn(table, column, type) {
+  try {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  } catch (e) {
+    if (!/duplicate column/i.test(e.message)) throw e;
+  }
+}
+
+// Ensure a first profile exists and carry over the old single-user watch columns.
+function migrateProfiles() {
+  if (db.prepare('SELECT COUNT(*) AS n FROM profiles').get().n === 0) {
+    db.prepare("INSERT INTO profiles (name) VALUES ('Default')").run();
+  }
+  const first = db.prepare('SELECT MIN(id) AS id FROM profiles').get().id;
+  if (db.prepare('SELECT COUNT(*) AS n FROM watch_state').get().n === 0) {
+    db.prepare(
+      `INSERT OR IGNORE INTO watch_state (profile_id, item_id, watched, progress_seconds, duration_seconds)
+       SELECT ?, id, watched, progress_seconds, duration_seconds FROM media_items
+       WHERE watched = 1 OR progress_seconds IS NOT NULL`
+    ).run(first);
+  }
+}
+
+// One-time seed from a legacy settings.json (if one exists) so old setups keep their folders.
 function migrateFromSettingsJson() {
   const serverCount = db.prepare('SELECT COUNT(*) AS n FROM servers').get().n;
   if (serverCount > 0) return;
@@ -115,7 +155,7 @@ function migrateFromSettingsJson() {
       insertFolder.run(server.id, folder.name, folder.mediaLocation || '', fi);
     });
   });
-  console.log('[DB] Seeded catalog from settings.json');
+  console.log('[DB] Seeded initial catalog');
 }
 
 function getDb() {
@@ -126,14 +166,22 @@ function getDb() {
   db.exec('PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA);
   // Add columns introduced after a table first shipped (no-op if already present).
-  try { db.exec('ALTER TABLE collections ADD COLUMN cover_url TEXT'); } catch {}
-  try { db.exec('ALTER TABLE media_items ADD COLUMN suggestions_json TEXT'); } catch {}
-  try { db.exec('ALTER TABLE media_items ADD COLUMN sort_title TEXT'); } catch {}
-  try { db.exec('ALTER TABLE media_items ADD COLUMN watched INTEGER DEFAULT 0'); } catch {}
-  try { db.exec('ALTER TABLE media_items ADD COLUMN progress_seconds REAL'); } catch {}
-  try { db.exec('ALTER TABLE media_items ADD COLUMN duration_seconds REAL'); } catch {}
+  addColumn('collections', 'cover_url', 'TEXT');
+  addColumn('media_items', 'suggestions_json', 'TEXT');
+  addColumn('media_items', 'sort_title', 'TEXT');
+  addColumn('media_items', 'watched', 'INTEGER DEFAULT 0');
+  addColumn('media_items', 'progress_seconds', 'REAL');
+  addColumn('media_items', 'duration_seconds', 'REAL');
+  addColumn('profiles', 'primary_color', 'TEXT');
+  addColumn('profiles', 'secondary_color', 'TEXT');
   migrateFromSettingsJson();
+  migrateProfiles();
   return db;
 }
 
-module.exports = { getDb };
+// Close the handle (checkpoints the WAL). Used on shutdown and in tests.
+function closeDb() {
+  if (db) { db.close(); db = null; }
+}
+
+module.exports = { getDb, closeDb };

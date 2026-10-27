@@ -1,4 +1,4 @@
-import type { BrowseResponse, CollectionDetail, CollectionSummary, MediaItem, MetadataSuggestion, PlayableFile, ServerSettings, SubtitleTrack } from './types';
+import type { BrowseResponse, CollectionDetail, CollectionSummary, MediaItem, MetadataSuggestion, PlayableFile, Profile, ScanStatus, SearchResult, ServerSettings, SetupStatus, SubtitleTrack } from './types';
 
 export const API_BASE = '/api';
 
@@ -7,8 +7,24 @@ export const API_BASE = '/api';
 let onUnauthorized: (() => void) | null = null;
 export function setUnauthorizedHandler(fn: () => void) { onUnauthorized = fn; }
 
+// Active profile (who's watching). Sent on every request so watch state is per person.
+const PROFILE_KEY = 'mm_profile';
+let activeProfileId: number | null = (() => {
+  try {
+    const v = Number(localStorage.getItem(PROFILE_KEY));
+    return Number.isInteger(v) && v > 0 ? v : null;
+  } catch { return null; }
+})();
+export const getActiveProfileId = () => activeProfileId;
+export function setActiveProfileId(id: number) {
+  activeProfileId = id;
+  try { localStorage.setItem(PROFILE_KEY, String(id)); } catch { /* storage unavailable */ }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, init);
+  const headers: Record<string, string> = { ...(init?.headers as Record<string, string> | undefined) };
+  if (activeProfileId != null) headers['X-Profile-Id'] = String(activeProfileId);
+  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 401 && onUnauthorized) onUnauthorized();
@@ -56,6 +72,20 @@ export const api = {
   getAuthStatus: () => request<{ authRequired: boolean; authenticated: boolean }>('/auth/status'),
 
   getKeyStatus: () => request<KeyStatus>('/keys/status'),
+
+  search: (q: string) => request<{ query: string; results: SearchResult[] }>(`/search?q=${encodeURIComponent(q)}`),
+
+  getProfiles: () => request<{ profiles: Profile[]; current: number }>('/profiles'),
+  createProfile: (name: string) => request<{ profile: Profile }>('/profiles', json({ name })),
+  updateProfile: (id: number, fields: { name?: string; primaryColor?: string | null; secondaryColor?: string | null }) =>
+    request<{ profile: Profile }>(`/profiles/${id}`, { ...json(fields), method: 'PATCH' }),
+  renameProfile: (id: number, name: string) =>
+    request<{ profile: Profile }>(`/profiles/${id}`, { ...json({ name }), method: 'PATCH' }),
+  deleteProfile: (id: number) => request<{ success: boolean }>(`/profiles/${id}`, { method: 'DELETE' }),
+
+  getScanStatus: () => request<ScanStatus>('/scan'),
+  startScan: () => request<ScanStatus>('/scan', { method: 'POST' }),
+  getSetupStatus: () => request<SetupStatus>('/setup/status'),
   login: (password: string) => request<{ success: boolean }>('/auth/login', json({ password })),
   logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
 

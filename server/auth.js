@@ -92,10 +92,33 @@ function clearCookie() {
   return `${COOKIE}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0`;
 }
 
+// Minimal in-memory brute-force guard for the login endpoint: max 10 attempts
+// per IP per 15 minutes. Successful logins don't reset it (keeps it simple).
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 10;
+const loginAttempts = new Map();
+
+function loginLimiter(req, res, next) {
+  const now = Date.now();
+  const key = req.ip || 'unknown';
+  const entry = loginAttempts.get(key);
+  if (!entry || entry.resetAt <= now) {
+    loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+  } else if (++entry.count > LOGIN_MAX_ATTEMPTS) {
+    res.setHeader('Retry-After', Math.ceil((entry.resetAt - now) / 1000));
+    return res.status(429).json({ error: 'Too many login attempts. Try again later.' });
+  }
+  // Opportunistic cleanup so the map can't grow unbounded.
+  if (loginAttempts.size > 1000) {
+    for (const [k, v] of loginAttempts) if (v.resetAt <= now) loginAttempts.delete(k);
+  }
+  next();
+}
+
 // Express middleware guarding a route group.
 function requireAuth(req, res, next) {
   if (isAuthed(req)) return next();
   res.status(401).json({ error: 'Unauthorized' });
 }
 
-module.exports = { authEnabled, isAuthed, checkPassword, sessionCookie, clearCookie, requireAuth };
+module.exports = { authEnabled, isAuthed, checkPassword, sessionCookie, clearCookie, requireAuth, loginLimiter };
