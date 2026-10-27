@@ -1,0 +1,26 @@
+# systemd unit — alternative to pm2 for boot-survival on the Pi.
+# Install:
+#   sudo cp media-monkey.service /etc/systemd/system/
+#   # edit User/WorkingDirectory below if you didn't clone to /home/pi/media-monkey
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now media-monkey
+#   systemctl status media-monkey        # check it's running
+#   journalctl -u media-monkey -f        # tail logs
+
+[Unit]
+Description=media-monkey
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/media-monkey
+ExecStart=/usr/bin/node server/index.js
+Environment=NODE_ENV=production
+Environment=PORT=5000
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
