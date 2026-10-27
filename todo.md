@@ -24,3 +24,14 @@
 - Persist seasons/episodes/collection children in DB (currently scanned on-demand each request)
 - Real API keys: add TMDB_API_KEY / OMDB_API_KEY / OPENSUBTITLES_API_KEY to server/.env to activate live lookups
 - Migrate off the legacy server/data/settings.json file entirely (kept only for one-time seed)
+
+# Planned
+
+- [ ] Make the client work on Android
+- [ ] Code split (player/hls.js is already lazy-loaded; split the rest of the bundle)
+- [ ] Get the server running independently on a Raspberry Pi
+- [ ] Client can set a server URL, or just log in and work based on login like Plex
+- [ ] Server auto-start and auto-update like Plex-Pi
+- [ ] Integrate cleanvid
+- [ ] Host the server on a Raspberry Pi and make it work like Plex (Tailscale may be the way)
+- [ ] Add controls for TV remote, game system, etc.
